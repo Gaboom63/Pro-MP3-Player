@@ -356,7 +356,8 @@
                     </div>
                 </div>
                 <h1 class="text-xl font-bold tracking-tight">GaboomsPlayer
-                    <span class="text-xs align-top text-neon">v7.1</span></h1>
+                    <span class="text-xs align-top text-neon">v7.1</span>
+                </h1>
             </div>
 
             <!-- USER PROFILE SECTION -->
@@ -458,7 +459,8 @@
                     </div>
 
                     <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-neon">
-                        <i class="fa-solid fa-fire"></i> Jump Back In</h3>
+                        <i class="fa-solid fa-fire"></i> Jump Back In
+                    </h3>
 
                     <div id="dashboard-content" class="grid grid-cols-1 md:grid-cols-3 gap-6 h-64 md:h-80 mb-8">
                         <div
@@ -482,13 +484,15 @@
 
                 <div id="view-home" class="view-section hidden">
                     <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
-                        <i class="fa-solid fa-music text-neon"></i> All Songs</h2>
+                        <i class="fa-solid fa-music text-neon"></i> All Songs
+                    </h2>
                     <div id="song-list" class="flex flex-col pb-20 space-y-1"></div>
                 </div>
 
                 <div id="view-albums" class="view-section hidden">
                     <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
-                        <i class="fa-solid fa-compact-disc text-neon"></i> Albums</h2>
+                        <i class="fa-solid fa-compact-disc text-neon"></i> Albums
+                    </h2>
                     <div id="album-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6"></div>
                 </div>
 
@@ -694,8 +698,9 @@
         // 2. Select "Config" (npm/CDN)
         // 3. Paste the object content below into MANUAL_FIREBASE_CONFIG
         // ---------------------------------------------------------
-        // const MANUAL_FIR/* Example:
-        const firebaseConfig = {
+        // const MANUAL_FIREBASE_CONFIG = null; 
+ 
+        const MANUAL_FIREBASE_CONFIG = {
           apiKey: "AIzaSyAj2CzXJHjAd1IxE71wGN0c1OcBkp-kYNQ",
           authDomain: "pro-mp3-player.firebaseapp.com",
           projectId: "pro-mp3-player",
@@ -707,6 +712,7 @@
         
         const MANUAL_APP_ID = "1:682326374028:web:c9cd612e32ae8f3a346da9";
 
+        let firebaseConfig = null;
         let appId = 'default-app';
 
         try {
