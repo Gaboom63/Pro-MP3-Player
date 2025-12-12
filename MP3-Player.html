@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gaboom's Ultimate Player v3 - MSM Edition</title>
+    <title>Gaboom's Ultimate Player v6</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -17,12 +17,17 @@
                     fontFamily: { sans: ['Outfit', 'sans-serif'] },
                     colors: {
                         glass: 'rgba(255, 255, 255, 0.08)',
-                        neon: '#a855f7',
-                        neonHover: '#c084fc',
+                        neon: 'var(--accent-color)', // Dynamic Theme Color
                         darkBg: '#0f172a',
                     },
                     animation: {
-                        'spin-slow': 'spin 8s linear infinite',
+                        'slide-in': 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    },
+                    keyframes: {
+                        slideIn: {
+                            '0%': { transform: 'translateX(100%)', opacity: '0' },
+                            '100%': { transform: 'translateX(0)', opacity: '1' }
+                        }
                     }
                 }
             }
@@ -30,11 +35,20 @@
     </script>
 
     <style>
+        :root {
+            --accent-color: #a855f7;
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #1e1b4b;
+        }
+
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
 
+        body { background: var(--bg-gradient-start); }
+        .main-gradient { background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end)); }
+        
         .glass-panel {
             background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(24px);
@@ -42,69 +56,132 @@
         }
 
         .active-track {
-            background: rgba(168, 85, 247, 0.15);
-            border-left: 3px solid #a855f7;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
+            border-left: 3px solid var(--accent-color);
         }
 
-        /* Vinyl Animation */
-        @keyframes spin-record { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .vinyl-record {
-            background: radial-gradient(circle, #1a1a1a 20%, #000 21%, #1a1a1a 100%);
-            box-shadow: 0 0 30px rgba(0,0,0,0.6);
-            animation: spin-record 6s linear infinite;
-            animation-play-state: paused; 
+        /* --- VISUALIZER TEXT ANIMATIONS --- */
+        
+        /* 1. Wavy Animation */
+        @keyframes waviy {
+            0%, 40%, 100% { transform: translateY(0); }
+            20% { transform: translateY(-20px); }
         }
-        .vinyl-spinning { animation-play-state: running !important; }
+        
+        .wave-char {
+            display: inline-block;
+            animation-name: waviy;
+            animation-duration: 1s;
+            animation-timing-function: ease;
+            animation-fill-mode: forwards;
+        }
 
-        /* Context Menu */
+        /* 2. Glint Animation */
+        @keyframes shine {
+            0% { background-position: 200% center; }
+            100% { background-position: -200% center; }
+        }
+
+        .glint-text {
+            /* Theme color shines through white text */
+            background: linear-gradient(to left, #fff 40%, var(--accent-color) 50%, #fff 60%);
+            background-size: 200% auto;
+            
+            /* Webkit required for text clipping */
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent; /* Fallback */
+            
+            animation: shine 1s linear forwards;
+            display: inline-block; /* Helps with gradient rendering */
+        }
+        
+        .normal-text {
+            color: white;
+            opacity: 1;
+        }
+
+        /* --- Dashboard Cards --- */
+        .dash-card {
+            position: relative; overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        .dash-card:hover { transform: scale(1.02); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .dash-card::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+        }
+
+        /* --- Playlist Input --- */
+        #new-playlist-container {
+            max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s ease;
+        }
+        #new-playlist-container.visible {
+            max-height: 50px; opacity: 1; margin-bottom: 8px;
+        }
+
+        /* --- Misc --- */
+        .drop-target-active {
+            background: rgba(168, 85, 247, 0.2) !important;
+            border: 1px dashed var(--accent-color) !important;
+            color: white !important;
+        }
         #context-menu {
             position: absolute; z-index: 100; display: none;
             background: #1e293b; border: 1px solid #334155;
             border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
             min-width: 180px;
         }
-        
-        /* Drag & Drop Styles */
-        .draggable-source { cursor: grab; }
-        .draggable-source:active { cursor: grabbing; }
-        .drop-target-active {
-            background: rgba(168, 85, 247, 0.2) !important;
-            border: 1px dashed #a855f7 !important;
-            color: white !important;
+        #queue-panel { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .queue-open { transform: translateX(0) !important; }
+        .queue-closed { transform: translateX(100%) !important; }
+        #toast {
+            visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
+            text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 100;
+            left: 50%; bottom: 100px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s, bottom 0.3s;
         }
-
-        /* Progress Bar */
+        #toast.show { visibility: visible; opacity: 1; bottom: 120px; }
+        
         .progress-wrapper {
             position: relative; height: 6px; width: 100%;
-            border-radius: 99px; background: #1e293b;
+            border-radius: 99px; background: rgba(255,255,255,0.1);
             cursor: pointer; overflow: visible;
             transition: height 0.2s;
         }
         .progress-wrapper:hover { height: 8px; }
         .progress-fill {
-            position: absolute; height: 100%;
-            background: linear-gradient(90deg, #3b82f6, #a855f7);
+            position: absolute; height: 100%; top:0; left:0;
+            background: var(--accent-color);
             border-radius: 99px; pointer-events: none;
-            box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+            box-shadow: 0 0 10px var(--accent-color);
             transition: width 0.1s linear;
         }
         .progress-handle {
             position: absolute; right: -6px; top: 50%; transform: translateY(-50%) scale(0);
-            width: 14px; height: 14px; background: white; border-radius: 50%;
+            width: 12px; height: 12px; background: white; border-radius: 50%;
             box-shadow: 0 0 10px white; transition: transform 0.1s;
         }
         .progress-wrapper:hover .progress-handle { transform: translateY(-50%) scale(1); }
         
-        /* Custom class for icon glow, independent of button background */
-        .icon-glow {
-            text-shadow: 0 0 8px #a855f7, 0 0 15px #a855f7; /* Custom glow effect */
-            transition: text-shadow 0.3s ease-in-out;
+        /* Specific Styles for Vis Text to ensure bottom placement */
+        #vis-text-wrapper {
+            position: absolute;
+            bottom: 15%;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 30;
+            pointer-events: none;
         }
     </style>
 </head>
-<body class="bg-darkBg text-white h-screen overflow-hidden flex flex-col font-sans select-none" onclick="hideContextMenu()">
+<body class="text-white h-screen overflow-hidden flex flex-col font-sans select-none" onclick="hideContextMenu()">
 
-    <div class="flex-1 flex overflow-hidden">
+    <div id="toast" class="glass-panel border-neon/50 border text-sm font-medium shadow-lg shadow-neon/10">Action Completed</div>
+
+    <div class="flex-1 flex overflow-hidden relative main-gradient">
         
         <aside class="w-64 glass-panel hidden md:flex flex-col z-20">
             <div class="p-6 flex items-center gap-3">
@@ -113,13 +190,14 @@
                         <i class="fa-solid fa-bolt"></i>
                     </div>
                 </div>
-                <h1 class="text-xl font-bold tracking-tight">GaboomsPlayer</h1>
+                <h1 class="text-xl font-bold tracking-tight">GaboomsPlayer <span class="text-xs align-top text-neon">v6</span></h1>
             </div>
 
             <nav class="flex-1 overflow-y-auto px-4 space-y-4">
                 <div>
-                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-2">Library</h3>
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-2">Menu</h3>
                     <ul class="space-y-1">
+                        <li><button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 flex items-center gap-3 text-slate-300"><i class="fa-solid fa-house w-5"></i> Welcome Back</button></li>
                         <li><button onclick="switchView('home')" id="nav-home" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 flex items-center gap-3 text-slate-300"><i class="fa-solid fa-music w-5"></i> Songs</button></li>
                         <li><button onclick="switchView('albums')" id="nav-albums" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 flex items-center gap-3 text-slate-300"><i class="fa-solid fa-compact-disc w-5"></i> Albums</button></li>
                         <li><button onclick="switchView('visualizer')" id="nav-visualizer" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 flex items-center gap-3 text-slate-300"><i class="fa-solid fa-wave-square w-5"></i> Visualizer</button></li>
@@ -127,9 +205,17 @@
                 </div>
 
                 <div>
-                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-2 flex justify-between">
-                        Playlists <button onclick="createPlaylist()" class="hover:text-white"><i class="fa-solid fa-plus"></i></button>
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-2 flex justify-between items-center">
+                        Playlists 
+                        <button onclick="toggleNewPlaylistInput()" class="hover:text-neon transition"><i class="fa-solid fa-plus"></i></button>
                     </h3>
+                    
+                    <div id="new-playlist-container" class="px-2">
+                        <input type="text" id="new-playlist-input" placeholder="Name..." 
+                               class="w-full bg-slate-900 border border-neon/50 rounded text-sm px-2 py-1 outline-none text-white focus:ring-1 focus:ring-neon"
+                               onkeydown="handlePlaylistInput(event)" onblur="cancelPlaylistInput()">
+                    </div>
+
                     <ul id="playlist-list" class="space-y-1 pb-4">
                         </ul>
                 </div>
@@ -139,13 +225,10 @@
                 <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 flex items-center gap-3 text-slate-300" onclick="switchView('settings')">
                     <i class="fa-solid fa-gear w-5"></i> Settings
                 </button>
-                <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/10 text-red-400 flex items-center gap-3" onclick="clearDatabase()">
-                    <i class="fa-solid fa-trash w-5"></i> Reset App
-                </button>
             </div>
         </aside>
 
-        <main class="flex-1 flex flex-col relative z-10 overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950">
+        <main class="flex-1 flex flex-col relative z-10 overflow-hidden">
             
             <header class="h-16 px-6 flex items-center justify-between border-b border-white/5 bg-slate-900/50 backdrop-blur-sm z-30">
                 <div class="flex items-center gap-4">
@@ -153,7 +236,7 @@
                         <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
                         <input type="text" id="search-bar" placeholder="Search..." class="bg-white/5 border border-transparent focus:border-neon/50 rounded-full pl-10 pr-4 py-1.5 text-sm text-white outline-none w-64 transition-all" oninput="filterSongs(this.value)">
                     </div>
-                    <select id="sort-select" onchange="sortLibrary(this.value)" class="bg-white/5 border-none text-xs rounded-lg px-2 py-1 text-slate-400 outline-none">
+                    <select id="sort-select" onchange="sortLibrary(this.value)" class="bg-white/5 border-none text-xs rounded-lg px-2 py-1 text-slate-400 outline-none cursor-pointer">
                         <option value="title">A-Z</option>
                         <option value="artist">Artist</option>
                         <option value="added">Recently Added</option>
@@ -162,7 +245,7 @@
                 <div class="flex items-center gap-4">
                      <div id="loading-indicator" class="hidden items-center gap-2 bg-slate-800 border border-white/10 px-3 py-1 rounded-full text-xs text-neon">
                         <i class="fa-solid fa-circle-notch fa-spin"></i>
-                        <span id="loading-text">Loading Library...</span>
+                        <span id="loading-text">Loading...</span>
                      </div>
                      <button onclick="document.getElementById('file-upload').click()" class="px-4 py-1.5 bg-neon hover:bg-neonHover rounded-full text-xs font-bold shadow-lg shadow-neon/20 transition">
                         <i class="fa-solid fa-upload mr-1"></i> Upload
@@ -173,9 +256,35 @@
 
             <div id="views-container" class="flex-1 overflow-y-auto p-6 scroll-smooth relative">
                 
-                <div id="view-home" class="view-section">
+                <div id="view-dashboard" class="view-section">
+                    <div class="mb-6">
+                        <h1 class="text-3xl font-bold mb-1">Welcome Back</h1>
+                        <p class="text-slate-400 text-sm">Pick up where you left off.</p>
+                    </div>
+
+                    <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-neon"><i class="fa-solid fa-fire"></i> Jump Back In</h3>
+                    
+                    <div id="dashboard-content" class="grid grid-cols-1 md:grid-cols-3 gap-6 h-64 md:h-80 mb-8">
+                        <div class="md:col-span-3 flex items-center justify-center border border-white/10 rounded-xl text-slate-500">
+                            Start listening to generate stats!
+                        </div>
+                    </div>
+
+                    <h3 class="text-lg font-bold mb-4">Your Library</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <button onclick="switchView('home')" class="bg-white/5 p-4 rounded-xl hover:bg-white/10 text-left transition">
+                            <i class="fa-solid fa-music text-2xl mb-2 text-blue-400"></i>
+                            <div class="font-bold">All Songs</div>
+                        </button>
+                        <button onclick="switchView('albums')" class="bg-white/5 p-4 rounded-xl hover:bg-white/10 text-left transition">
+                            <i class="fa-solid fa-compact-disc text-2xl mb-2 text-purple-400"></i>
+                            <div class="font-bold">Albums</div>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="view-home" class="view-section hidden">
                     <h2 class="text-2xl font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-music text-neon"></i> All Songs</h2>
-                    <p class="text-xs text-slate-500 mb-4">Tip: Drag and drop songs onto playlists!</p>
                     <div id="song-list" class="flex flex-col pb-20 space-y-1"></div>
                 </div>
 
@@ -209,59 +318,76 @@
                     <h2 class="text-2xl font-bold mb-6">Settings</h2>
                     <div class="bg-white/5 rounded-xl p-6 space-y-6">
                         <div>
-                            <label class="block text-sm text-slate-400 mb-2">Crossfade Duration</label>
-                            <p class="text-xs text-slate-500 mb-2">Songs will overlap for this duration.</p>
-                            <div class="flex items-center gap-4">
-                                <input type="range" min="0" max="12" value="4" id="setting-crossfade" class="flex-1 accent-neon" oninput="this.nextElementSibling.value = this.value + 's'; updateSettings()">
-                                <output class="text-sm font-mono w-8">4s</output>
+                            <label class="block text-sm text-slate-400 mb-2">App Theme</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <button onclick="setTheme('midnight')" class="p-3 rounded border border-white/10 bg-[#0f172a] hover:border-neon text-left text-xs">
+                                    <div class="font-bold text-purple-400">Midnight</div>
+                                </button>
+                                <button onclick="setTheme('cyberpunk')" class="p-3 rounded border border-white/10 bg-[#000] hover:border-yellow-400 text-left text-xs">
+                                    <div class="font-bold text-yellow-400">Cyberpunk</div>
+                                </button>
+                                <button onclick="setTheme('ocean')" class="p-3 rounded border border-white/10 bg-[#0f2e2e] hover:border-cyan-400 text-left text-xs">
+                                    <div class="font-bold text-cyan-400">Ocean</div>
+                                </button>
+                                <button onclick="setTheme('sunset')" class="p-3 rounded border border-white/10 bg-[#2a1015] hover:border-orange-500 text-left text-xs">
+                                    <div class="font-bold text-orange-500">Sunset</div>
+                                </button>
                             </div>
                         </div>
+                        <hr class="border-white/10">
                         <div>
-                            <label class="block text-sm text-slate-400 mb-2">Visualizer Color</label>
-                            <div class="flex gap-2">
-                                <button onclick="setVisColor('#a855f7')" class="w-8 h-8 rounded-full bg-purple-500 border-2 border-transparent focus:border-white"></button>
-                                <button onclick="setVisColor('#3b82f6')" class="w-8 h-8 rounded-full bg-blue-500 border-2 border-transparent focus:border-white"></button>
-                                <button onclick="setVisColor('#22c55e')" class="w-8 h-8 rounded-full bg-green-500 border-2 border-transparent focus:border-white"></button>
-                                <button onclick="setVisColor('#ef4444')" class="w-8 h-8 rounded-full bg-red-500 border-2 border-transparent focus:border-white"></button>
+                            <label class="block text-sm text-slate-400 mb-2">Crossfade (seconds)</label>
+                            <div class="flex items-center gap-4">
+                                <input type="range" id="setting-crossfade" min="0" max="12" step="1" value="4" class="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-neon" oninput="document.getElementById('crossfade-val').textContent = this.value + 's'; updateSettings()">
+                                <span id="crossfade-val" class="text-sm font-mono w-8">4s</span>
                             </div>
                         </div>
-                        
-                        <div class="pt-4 border-t border-white/10">
-                             <h3 class="text-lg font-bold mb-2">GitHub Sync</h3>
-                             <p class="text-xs text-slate-400 mb-2">Automatically populates music from the MSM-Music folder.</p>
-                             <div class="text-xs font-mono bg-black/30 p-3 rounded">
-                                 Configured Repo: <span id="conf-repo" class="text-neon">Not set</span><br>
-                                 Folder: <span id="conf-folder" class="text-neon">MSM-Music</span>
-                             </div>
+                        <hr class="border-white/10">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">Visualizer Style</label>
+                            <select id="setting-vis-style" onchange="updateSettings()" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white focus:border-neon outline-none">
+                                <option value="mirror">Dual Mirror</option>
+                                <option value="bar">Classic Bars</option>
+                                <option value="wave">Oscilloscope</option>
+                                <option value="circle">Radial</option>
+                            </select>
                         </div>
                     </div>
                 </div>
 
-                <div id="view-visualizer" class="hidden h-full flex flex-col items-center justify-center relative view-section">
-                    <canvas id="visualizer-canvas" class="absolute inset-0 w-full h-full z-0 opacity-80"></canvas>
-                    <div class="z-10 text-center relative pointer-events-none transform scale-90">
-                        <div id="vis-record" class="w-80 h-80 vinyl-record mx-auto mb-8 rounded-full flex items-center justify-center border-[6px] border-slate-900">
-                             <div id="vis-art-label" class="w-[45%] h-[45%] rounded-full bg-cover bg-center border border-white/20"></div>
-                        </div>
-                        <h2 id="vis-title" class="text-3xl font-bold text-white mb-2 tracking-tight">No Song</h2>
-                        <p id="vis-artist" class="text-xl text-slate-400">Unknown</p>
+                <!-- UPDATED VISUALIZER LAYOUT -->
+                <div id="view-visualizer" class="hidden h-full flex flex-col items-center justify-center relative view-section overflow-hidden">
+                    <canvas id="visualizer-canvas" class="absolute inset-0 w-full h-full z-0 opacity-60"></canvas>
+                    
+                    <div id="vis-art-corner" class="absolute top-8 right-8 w-48 h-48 rounded-xl bg-slate-800 bg-cover bg-center shadow-2xl border border-white/10 z-20"></div>
+
+                    <!-- Absolute positioning wrapper for bottom placement -->
+                    <div id="vis-text-wrapper" class="px-10">
+                        <!-- Reduced text size per request -->
+                        <h2 id="vis-title-container" class="text-3xl md:text-4xl font-bold text-white mb-1 tracking-tight drop-shadow-xl inline-block normal-text"></h2>
+                        <p id="vis-artist" class="text-base text-slate-300 font-light drop-shadow-md">Unknown</p>
                     </div>
                 </div>
 
             </div>
         </main>
+
+        <aside id="queue-panel" class="absolute top-0 right-0 h-full w-80 glass-panel border-l border-white/10 z-40 transform translate-x-full flex flex-col shadow-2xl">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/50">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-list-ol text-neon mr-2"></i> Play Queue</h3>
+                <button onclick="toggleQueue()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-1" id="queue-list-container"></div>
+            <div class="p-3 border-t border-white/10 text-center">
+                 <button onclick="clearQueue()" class="text-xs text-red-400 hover:text-red-300">Clear Queue</button>
+            </div>
+        </aside>
+
     </div>
 
     <footer class="h-24 glass-panel border-t border-white/10 z-50 flex flex-col relative shadow-[0_-5px_20px_rgba(0,0,0,0.3)]">
-        <div class="absolute -top-1.5 left-0 w-full px-0 group" id="progress-container">
-             <div class="progress-wrapper" onclick="seekAudio(event)">
-                <div id="progress-fill" class="progress-fill" style="width: 0%">
-                    <div class="progress-handle"></div>
-                </div>
-             </div>
-        </div>
-
         <div class="flex items-center justify-between px-6 h-full pt-2">
+            
             <div class="flex items-center w-1/4 min-w-[240px] gap-4">
                 <div id="player-art" class="w-14 h-14 rounded-md bg-slate-800 bg-cover bg-center shadow-lg border border-white/10 cursor-pointer hover:scale-105 transition" onclick="switchView('visualizer')"></div>
                 <div class="overflow-hidden">
@@ -271,40 +397,39 @@
                 <button onclick="toggleLike()" id="like-btn" class="text-slate-500 hover:text-neon transition ml-2"><i class="fa-regular fa-heart"></i></button>
             </div>
 
-            <div class="flex flex-col items-center justify-center flex-1">
-                <div class="flex items-center gap-6 mb-1">
-                    
-                    <button onclick="toggleShuffle()" id="btn-shuffle" class="text-slate-500 hover:text-white transition text-sm relative" title="Shuffle">
-                        <span id="shuffle-icon-wrapper"><i class="fa-solid fa-shuffle"></i></span>
-                    </button>
-
+            <div class="flex flex-col items-center justify-center flex-1 max-w-xl px-4">
+                <div class="flex items-center gap-6 mb-2">
+                    <button onclick="toggleShuffle()" id="btn-shuffle" class="text-slate-500 hover:text-white transition text-sm relative" title="Shuffle"><span id="shuffle-icon-wrapper"><i class="fa-solid fa-shuffle"></i></span></button>
                     <button onclick="prevSong()" class="text-slate-300 hover:text-white transition text-xl"><i class="fa-solid fa-backward-step"></i></button>
-                    
-                    <button onclick="togglePlay()" id="btn-play" class="w-12 h-12 rounded-full bg-white text-black hover:scale-105 hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] transition flex items-center justify-center"><i class="fa-solid fa-play ml-1 text-lg"></i></button>
-                    
+                    <button onclick="togglePlay()" id="btn-play" class="w-10 h-10 rounded-full bg-white text-black hover:scale-105 hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] transition flex items-center justify-center"><i class="fa-solid fa-play ml-1 text-base"></i></button>
                     <button onclick="nextSong()" class="text-slate-300 hover:text-white transition text-xl"><i class="fa-solid fa-forward-step"></i></button>
-                    
-                    <button onclick="toggleRepeat()" id="btn-repeat" class="text-slate-500 hover:text-white transition text-sm relative" title="Loop">
-                        <span id="repeat-icon-wrapper"><i class="fa-solid fa-repeat"></i></span>
-                        <span id="repeat-dot" class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-neon rounded-full hidden"></span>
-                    </button>
-
+                    <button onclick="toggleRepeat()" id="btn-repeat" class="text-slate-500 hover:text-white transition text-sm relative" title="Loop"><span id="repeat-icon-wrapper"><i class="fa-solid fa-repeat"></i></span><span id="repeat-dot" class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-neon rounded-full hidden"></span></button>
                 </div>
-                <div class="w-full flex justify-between items-center text-[10px] text-slate-400 font-mono gap-2 max-w-md">
-                    <span id="current-time">0:00</span>
-                    <span id="duration-time">0:00</span>
+                <div class="w-full flex items-center gap-3 text-[10px] text-slate-400 font-mono">
+                    <span id="current-time" class="w-8 text-right">0:00</span>
+                    <div class="progress-wrapper flex-1" onclick="seekAudio(event)">
+                        <div id="progress-fill" class="progress-fill" style="width: 0%"><div class="progress-handle"></div></div>
+                    </div>
+                    <span id="duration-time" class="w-8">0:00</span>
                 </div>
             </div>
 
-            <div class="flex items-center justify-end w-1/4 gap-3">
-                <i class="fa-solid fa-volume-low text-xs text-slate-500"></i>
-                <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.8" class="w-24 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-white" oninput="setVolume(this.value)">
+            <div class="flex items-center justify-end w-1/4 gap-4">
+                <div class="flex items-center gap-2 group">
+                    <i class="fa-solid fa-volume-low text-xs text-slate-500 group-hover:text-white transition"></i>
+                    <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.8" class="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-white" oninput="setVolume(this.value)">
+                </div>
+                <button onclick="toggleQueue()" id="btn-queue" class="text-slate-500 hover:text-neon transition ml-2 border border-transparent hover:border-white/10 p-1.5 rounded-lg" title="Queue"><i class="fa-solid fa-list"></i></button>
             </div>
         </div>
     </footer>
 
     <div id="context-menu">
         <ul class="text-sm text-slate-300 py-1">
+            <li class="px-4 py-2 hover:bg-neon/20 hover:text-white cursor-pointer" onclick="addToQueueNext()">
+                <i class="fa-solid fa-play-circle mr-2 text-xs"></i>Play Next
+            </li>
+            <div class="border-t border-slate-700 my-1"></div>
             <li class="px-4 py-2 hover:bg-neon/20 hover:text-white cursor-pointer relative group flex justify-between items-center">
                 <span>Add to Playlist</span>
                 <i class="fa-solid fa-chevron-right text-[10px] text-slate-500 group-hover:text-white"></i>
@@ -312,69 +437,50 @@
                     <li class="px-4 py-2 text-slate-500 italic text-xs">No playlists...</li>
                 </ul>
             </li>
+            <div class="border-t border-slate-700 my-1"></div>
             <li class="px-4 py-2 hover:bg-red-500/20 hover:text-red-400 cursor-pointer" onclick="deleteSongFromContext()">Delete Song</li>
         </ul>
     </div>
 
     <script>
-        // --- CONFIGURATION START ---
-        // Edit these values to match your GitHub repository
-        const GITHUB_CONFIG = {
-            enabled: true,
-            owner: 'Gaboom63', // <--- Change this (e.g., 'Gaboom')
-            repo: 'Pro-MP3-Player',        // <--- Change this (e.g., 'Music-Repo')
-            path: 'MSM-Music'              // <--- The folder to scan
+        // --- THEMES & CONFIG ---
+        const THEMES = {
+            midnight: { accent: '#a855f7', start: '#0f172a', end: '#1e1b4b' },
+            cyberpunk: { accent: '#facc15', start: '#000000', end: '#1a1a1a' },
+            ocean: { accent: '#22d3ee', start: '#042f2e', end: '#115e59' },
+            sunset: { accent: '#f97316', start: '#450a0a', end: '#7c2d12' }
         };
-        // --- CONFIGURATION END ---
 
+        const GITHUB_CONFIG = { enabled: true, owner: 'Gaboom63', repo: 'Pro-MP3-Player', path: 'MSM-Music' };
         const DB_NAME = 'ProPlayerDB';
         const DB_VER = 1;
         let db;
 
-        // --- Audio Engine State (Dual Deck) ---
         const engine = {
-            audioA: new Audio(),
-            audioB: new Audio(),
-            activeDeck: 'A',
-            isCrossfading: false,
-            audioCtx: null,
-            analyser: null,
-            gainA: null,
-            gainB: null
+            audioA: new Audio(), audioB: new Audio(), activeDeck: 'A', isCrossfading: false,
+            audioCtx: null, analyser: null, gainA: null, gainB: null
         };
-        
-        engine.audioA.crossOrigin = "anonymous";
-        engine.audioB.crossOrigin = "anonymous";
+        engine.audioA.crossOrigin = "anonymous"; engine.audioB.crossOrigin = "anonymous";
 
         const state = {
-            songs: [],
-            playlists: JSON.parse(localStorage.getItem('pro_playlists') || '[]'),
-            settings: JSON.parse(localStorage.getItem('pro_settings') || '{"crossfade": 4, "visColor": "#a855f7"}'),
-            queue: [], 
-            originalQueue: [],
-            currentIndex: -1,
-            isPlaying: false,
-            shuffle: false,
-            repeat: false,
-            contextTargetId: null,
-            activePlaylistId: null
+            songs: [], playlists: JSON.parse(localStorage.getItem('pro_playlists') || '[]'),
+            settings: JSON.parse(localStorage.getItem('pro_settings') || '{"crossfade": 4, "theme": "midnight", "visStyle": "mirror"}'),
+            queue: [], originalQueue: [], currentIndex: -1, isPlaying: false, shuffle: false, repeat: false,
+            contextTargetId: null, activePlaylistId: null, isQueueOpen: false
         };
 
         const jsmediatags = window.jsmediatags;
 
         window.addEventListener('load', async () => {
-            document.getElementById('conf-repo').textContent = `${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`;
-            document.getElementById('conf-folder').textContent = GITHUB_CONFIG.path;
-
             await initDB();
             await loadSongs(); 
+            if(GITHUB_CONFIG.enabled) await autoPopulateGitHub();
             
-            if(GITHUB_CONFIG.enabled && GITHUB_CONFIG.owner !== 'YOUR_GITHUB_USERNAME') {
-                await autoPopulateGitHub();
-            }
-
+            setTheme(state.settings.theme || 'midnight');
             applySettings();
             renderPlaylists();
+            
+            switchView('dashboard');
             
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.setActionHandler('play', togglePlay);
@@ -392,8 +498,8 @@
 
             engine.audioA.addEventListener('timeupdate', () => handleTimeUpdate(engine.audioA));
             engine.audioB.addEventListener('timeupdate', () => handleTimeUpdate(engine.audioB));
-            engine.audioA.addEventListener('ended', () => { if (!engine.isCrossfading && !state.repeat) nextSong(); else if (state.repeat) { engine.audioA.currentTime = 0; engine.audioA.play(); } });
-            engine.audioB.addEventListener('ended', () => { if (!engine.isCrossfading && !state.repeat) nextSong(); else if (state.repeat) { engine.audioB.currentTime = 0; engine.audioB.play(); } });
+            engine.audioA.addEventListener('ended', handleTrackEnd);
+            engine.audioB.addEventListener('ended', handleTrackEnd);
 
             requestAnimationFrame(drawVisualizerLoop);
             resizeCanvas();
@@ -401,157 +507,197 @@
             updateControlStates();
         });
 
-        // --- GITHUB INTEGRATION ---
-        async function autoPopulateGitHub() {
-            const indicator = document.getElementById('loading-indicator');
-            const loadText = document.getElementById('loading-text');
-            indicator.classList.remove('hidden'); 
-            indicator.classList.add('flex');
-            loadText.textContent = "Syncing MSM-Music...";
-
-            // 1. Ensure "My Singing Monsters" playlist exists
-            const playlistName = "My Singing Monsters";
-            let msmPlaylist = state.playlists.find(p => p.name === playlistName);
-            if (!msmPlaylist) {
-                msmPlaylist = { id: Date.now(), name: playlistName, songs: [] };
-                state.playlists.push(msmPlaylist);
-            }
-
-            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
-            
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("Repo not found");
-                const files = await response.json();
-                
-                let addedCount = 0;
-                
-                files.forEach(file => {
-                    if (file.name.endsWith('.mp3')) {
-                        // Check if song already exists in GLOBAL state
-                        let existingSong = state.songs.find(s => s.url === file.download_url);
-                        let songId;
-
-                        if (!existingSong) {
-                            const cleanName = file.name.replace('.mp3', '').replace(/_/g, ' ');
-                            songId = Date.now() + Math.floor(Math.random() * 100000);
-                            
-                            const newSong = {
-                                id: songId,
-                                title: cleanName,
-                                artist: "MSM-Music",
-                                album: "GitHub Stream",
-                                blob: null,
-                                added: Date.now(),
-                                liked: false,
-                                base64Art: null, // You can add a URL to a specific image here if you want
-                                url: file.download_url,
-                                isRemote: true
-                            };
-                            
-                            state.songs.push(newSong);
-                            existingSong = newSong;
-                            addedCount++;
-                        } else {
-                            songId = existingSong.id;
-                        }
-
-                        // 2. Add to MSM Playlist if not present
-                        if (!msmPlaylist.songs.includes(songId)) {
-                            msmPlaylist.songs.push(songId);
-                        }
-                    }
-                });
-
-                if(addedCount > 0) {
-                    console.log(`Synced ${addedCount} songs from GitHub`);
-                    // We DO NOT re-render the main song list here because we want them HIDDEN from the main list.
-                    // We only save playlists and update the sidebar.
-                    savePlaylists();
-                    renderPlaylists();
-                }
-
-            } catch (error) {
-                console.warn("GitHub Sync failed:", error);
-            } finally {
-                indicator.classList.add('hidden'); 
-                indicator.classList.remove('flex');
-            }
+        function handleTrackEnd() {
+            // Updated to allow infinite play logic inside nextSong to take over
+            nextSong();
         }
 
-        // --- Core Audio Logic ---
+        // --- DASHBOARD LOGIC ---
+        function renderDashboard() {
+            const content = document.getElementById('dashboard-content');
+            
+            // Sort songs by plays
+            const topSongs = [...state.songs].sort((a,b) => (b.plays || 0) - (a.plays || 0)).filter(s => (s.plays || 0) > 0).slice(0, 3);
+            
+            if(topSongs.length === 0) {
+                content.innerHTML = '<div class="md:col-span-3 flex flex-col items-center justify-center border border-white/10 rounded-xl text-slate-500 bg-white/5 h-full"><i class="fa-solid fa-headphones text-4xl mb-2 opacity-50"></i><p>Listen to songs to build your history!</p></div>';
+                return;
+            }
+
+            let html = '';
+            
+            // #1 Song (Big Left Card)
+            if(topSongs[0]) {
+                const s = topSongs[0];
+                const art = s.base64Art ? `url('${s.base64Art}')` : 'linear-gradient(135deg, #4c1d95, #1e40af)';
+                // UPDATED: Now calls playLibrarySong instead of just playSong
+                html += `
+                <div onclick="playLibrarySong(${s.id});" class="md:col-span-2 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-6 flex flex-col justify-end" style="background-image: ${art}">
+                    <div class="relative z-10">
+                        <div class="text-xs font-bold bg-neon text-white px-2 py-1 rounded w-max mb-2">MOST PLAYED</div>
+                        <h2 class="text-3xl font-bold text-white drop-shadow-md truncate">${s.title}</h2>
+                        <p class="text-lg text-slate-200 drop-shadow-md truncate">${s.artist}</p>
+                        <p class="text-xs text-slate-300 mt-1"><i class="fa-solid fa-play text-[10px] mr-1"></i> ${s.plays} plays</p>
+                    </div>
+                </div>`;
+            }
+
+            // Right Column Stack
+            html += '<div class="flex flex-col gap-6 h-full">';
+            
+            if(topSongs[1]) {
+                const s = topSongs[1];
+                const art = s.base64Art ? `url('${s.base64Art}')` : 'linear-gradient(135deg, #1e40af, #0f172a)';
+                html += `
+                <div onclick="playLibrarySong(${s.id});" class="flex-1 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-4 flex flex-col justify-end" style="background-image: ${art}">
+                    <div class="relative z-10">
+                         <div class="text-[10px] font-bold bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded w-max mb-1">#2</div>
+                         <h3 class="font-bold text-white truncate text-lg drop-shadow-md">${s.title}</h3>
+                         <p class="text-sm text-slate-300 drop-shadow-md truncate">${s.artist}</p>
+                    </div>
+                </div>`;
+            }
+            if(topSongs[2]) {
+                const s = topSongs[2];
+                const art = s.base64Art ? `url('${s.base64Art}')` : 'linear-gradient(135deg, #334155, #0f172a)';
+                html += `
+                <div onclick="playLibrarySong(${s.id});" class="flex-1 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-4 flex flex-col justify-end" style="background-image: ${art}">
+                    <div class="relative z-10">
+                         <div class="text-[10px] font-bold bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded w-max mb-1">#3</div>
+                         <h3 class="font-bold text-white truncate text-lg drop-shadow-md">${s.title}</h3>
+                         <p class="text-sm text-slate-300 drop-shadow-md truncate">${s.artist}</p>
+                    </div>
+                </div>`;
+            }
+            html += '</div>';
+
+            content.innerHTML = html;
+        }
+
+        // New function to handle playing from dashboard with full context
+        function playLibrarySong(id) {
+            setQueueContext(state.songs);
+            playSong(id);
+            switchView('visualizer');
+        }
+        
+        // --- NEW WRAPPER FOR CLICK TO PLAY + VISUALIZER ---
+        function playAndGoToVisualizer(id) {
+            playSong(id);
+            switchView('visualizer');
+        }
+
+        function incrementPlayCount(song) {
+            song.plays = (song.plays || 0) + 1;
+            const tx = db.transaction('songs', 'readwrite');
+            const store = tx.objectStore('songs');
+            store.put(song);
+        }
+
+        // --- UPDATED VISUALIZER ANIMATION LOGIC ---
+        function updateVisualizerText(title, artist) {
+            const container = document.getElementById('vis-title-container');
+            
+            // 1. Reset everything
+            container.className = 'text-3xl md:text-4xl font-bold text-white mb-1 tracking-tight drop-shadow-xl inline-block normal-text'; 
+            container.innerHTML = ''; 
+            
+            // Clear any pending timeouts
+            if (window.glintTimeout) clearTimeout(window.glintTimeout);
+            if (window.resetTimeout) clearTimeout(window.resetTimeout);
+
+            // 2. Wave Phase
+            const chars = title.split('');
+            chars.forEach((char, i) => {
+                const span = document.createElement('span');
+                span.textContent = char === ' ' ? '\u00A0' : char;
+                span.className = 'wave-char';
+                // Staggered animation: i * 0.1s creates the left-to-right ripple
+                span.style.animation = `waviy 1s ease forwards ${i * 0.1}s`;
+                container.appendChild(span);
+            });
+
+            // 3. Glint Phase Calculation
+            // Wait for wave to finish (stagger + duration)
+            const waveDuration = (chars.length * 0.1) + 1.0;
+            
+            window.glintTimeout = setTimeout(() => {
+                // Flatten text and prepare for glint
+                container.textContent = title; 
+                // Remove normal-text, add glint-text
+                container.classList.remove('normal-text');
+                container.classList.add('glint-text');
+                
+                // 4. Reset after Glint
+                // Glint animation is set to 1s in CSS
+                window.resetTimeout = setTimeout(() => {
+                     container.classList.remove('glint-text');
+                     container.classList.add('normal-text');
+                }, 1000); // 1s matches CSS animation duration
+                
+            }, waveDuration * 1000);
+
+            document.getElementById('vis-artist').textContent = artist;
+        }
+
+        // --- AUDIO ENGINE ---
         function initAudioEngine() {
             if(engine.audioCtx) return;
             const AC = window.AudioContext || window.webkitAudioContext;
             engine.audioCtx = new AC();
             engine.analyser = engine.audioCtx.createAnalyser();
-            engine.analyser.fftSize = 1024; 
+            engine.analyser.fftSize = 2048; 
             engine.analyser.smoothingTimeConstant = 0.85; 
-
             const sourceA = engine.audioCtx.createMediaElementSource(engine.audioA);
-            engine.gainA = engine.audioCtx.createGain();
-            sourceA.connect(engine.gainA);
-            engine.gainA.connect(engine.analyser);
-
             const sourceB = engine.audioCtx.createMediaElementSource(engine.audioB);
+            engine.gainA = engine.audioCtx.createGain();
             engine.gainB = engine.audioCtx.createGain();
-            sourceB.connect(engine.gainB);
-            engine.gainB.connect(engine.analyser);
-
+            sourceA.connect(engine.gainA); sourceB.connect(engine.gainB);
+            engine.gainA.connect(engine.analyser); engine.gainB.connect(engine.analyser);
             engine.analyser.connect(engine.audioCtx.destination);
         }
-
         function getActiveAudio() { return engine.activeDeck === 'A' ? engine.audioA : engine.audioB; }
 
         function handleTimeUpdate(audioElement) {
             if(engine.activeDeck === 'A' && audioElement !== engine.audioA && !engine.isCrossfading) return;
             if(engine.activeDeck === 'B' && audioElement !== engine.audioB && !engine.isCrossfading) return;
-
             if(audioElement === getActiveAudio() && !isNaN(audioElement.duration)) {
                 const percent = (audioElement.currentTime / audioElement.duration) * 100;
                 document.getElementById('progress-fill').style.width = `${percent}%`;
                 document.getElementById('current-time').textContent = formatTime(audioElement.currentTime);
                 document.getElementById('duration-time').textContent = formatTime(audioElement.duration);
             }
-
             if(state.isPlaying && !engine.isCrossfading && audioElement === getActiveAudio() && audioElement.duration > 0) {
                 const timeLeft = audioElement.duration - audioElement.currentTime;
                 const fadeTime = parseFloat(state.settings.crossfade);
-                if(!state.repeat && timeLeft <= fadeTime && fadeTime > 0) performCrossfade();
+                if(timeLeft <= fadeTime && fadeTime > 0) performCrossfade();
             }
         }
 
         function playSong(songId, isFadeEntry = false) {
             initAudioEngine();
             if(engine.audioCtx.state === 'suspended') engine.audioCtx.resume();
+            
+            // SAFETY CHECK: If queue is empty but songs exist, refill queue to prevent stoppage
+            if (state.queue.length === 0 && state.songs.length > 0) {
+                state.queue = [...state.songs];
+            }
 
-            // IMPORTANT: The song must be in state.queue for playback to work properly with Next/Prev
-            const index = state.queue.findIndex(s => s.id === songId);
+            let index = state.queue.findIndex(s => s.id === songId);
             if(index === -1) {
-                // Fallback: If song exists but not in current queue, play it anyway but Next/Prev might act weird
-                // Better approach: Just try to find it in state.songs
-                const fallbackSong = state.songs.find(s => s.id === songId);
-                if(fallbackSong) {
-                     // Temporary hack: Just play it, don't set index
-                     let targetAudio = engine.activeDeck === 'A' ? engine.audioA : engine.audioB;
-                     engine.gainA.gain.value = 1; engine.gainB.gain.value = 1;
-                     engine.isCrossfading = false;
-                     const other = engine.activeDeck === 'A' ? engine.audioB : engine.audioA;
-                     other.pause();
-                     targetAudio.src = fallbackSong.url;
-                     targetAudio.currentTime = 0;
-                     targetAudio.play().then(() => { state.isPlaying = true; updateUI(fallbackSong); }).catch(e=>console.error(e));
-                     return;
-                }
-                return;
+                const s = state.songs.find(x => x.id === songId);
+                if(!s) return;
+                state.queue = [s]; index = 0;
             }
             state.currentIndex = index;
             const song = state.queue[index];
+            if(state.isQueueOpen) renderQueueList();
+
+            // Track Play
+            incrementPlayCount(song);
 
             let targetAudio = engine.activeDeck === 'A' ? engine.audioA : engine.audioB;
-            
-            engine.gainA.gain.value = 1;
-            engine.gainB.gain.value = 1;
+            engine.gainA.gain.value = 1; engine.gainB.gain.value = 1;
 
             if(!isFadeEntry) {
                 engine.isCrossfading = false;
@@ -559,22 +705,19 @@
                 other.pause();
                 targetAudio.src = song.url;
                 targetAudio.currentTime = 0;
-                targetAudio.play().then(() => { 
-                    state.isPlaying = true; 
-                    updateUI(song); 
-                }).catch(e => console.error(e));
+                targetAudio.play().then(() => { state.isPlaying = true; updateUI(song); }).catch(e => console.error(e));
             }
         }
 
         function performCrossfade() {
+            // Infinite Queue Logic for Crossfade
             let nextIdx = state.currentIndex + 1;
-            if(nextIdx >= state.queue.length) {
-                if(state.repeat) nextIdx = 0; 
-                else return; 
-            }
+            if(nextIdx >= state.queue.length) nextIdx = 0; // Loop back to start automatically
+            
             engine.isCrossfading = true; 
             const nextSong = state.queue[nextIdx];
-            
+            incrementPlayCount(nextSong);
+
             const outgoingDeck = engine.activeDeck;
             const incomingDeck = engine.activeDeck === 'A' ? 'B' : 'A';
             const outgoingGain = outgoingDeck === 'A' ? engine.gainA : engine.gainB;
@@ -582,8 +725,7 @@
             const outgoingAudio = outgoingDeck === 'A' ? engine.audioA : engine.audioB;
             const incomingAudio = incomingDeck === 'A' ? engine.audioA : engine.audioB;
 
-            incomingAudio.src = nextSong.url;
-            incomingAudio.currentTime = 0;
+            incomingAudio.src = nextSong.url; incomingAudio.currentTime = 0;
             incomingGain.gain.setValueAtTime(0, engine.audioCtx.currentTime);
             
             incomingAudio.play().then(() => {
@@ -596,12 +738,9 @@
                 state.currentIndex = nextIdx;
                 updateUI(nextSong);
                 engine.activeDeck = incomingDeck;
+                if(state.isQueueOpen) renderQueueList();
 
-                setTimeout(() => { 
-                    outgoingAudio.pause(); 
-                    outgoingGain.gain.value = 1; 
-                    engine.isCrossfading = false; 
-                }, fadeDuration * 1000);
+                setTimeout(() => { outgoingAudio.pause(); outgoingGain.gain.value = 1; engine.isCrossfading = false; }, fadeDuration * 1000);
             }).catch(e => console.error(e));
         }
 
@@ -612,14 +751,10 @@
             if(active.duration) active.currentTime = pos * active.duration;
         }
 
-        function setVolume(val) {
-             engine.audioA.volume = val;
-             engine.audioB.volume = val;
-        }
+        function setVolume(val) { engine.audioA.volume = val; engine.audioB.volume = val; }
 
-        // --- Database & Files ---
+        // --- DB / FILES ---
         function initDB() { return new Promise((resolve) => { const req = indexedDB.open(DB_NAME, DB_VER); req.onupgradeneeded = e => { const db = e.target.result; if(!db.objectStoreNames.contains('songs')) db.createObjectStore('songs', { keyPath: 'id', autoIncrement: true }); }; req.onsuccess = e => { db = e.target.result; resolve(); }; }); }
-
         function loadSongs() {
             return new Promise((resolve) => {
                 const indicator = document.getElementById('loading-indicator');
@@ -627,16 +762,14 @@
                 const tx = db.transaction('songs', 'readonly');
                 tx.objectStore('songs').getAll().onsuccess = e => {
                     const rawSongs = e.target.result || [];
-                    const processed = rawSongs.map(s => {
-                        if(s.blob && !s.url) s.url = URL.createObjectURL(s.blob);
-                        return s;
-                    });
+                    state.songs = rawSongs.map(s => { if(s.blob && !s.url) s.url = URL.createObjectURL(s.blob); return s; });
+                    const local = state.songs.filter(s => !s.isRemote);
                     
-                    state.songs = [...processed];
-                    // FILTER: Only show local songs in main view/queue by default
-                    state.queue = state.songs.filter(s => !s.isRemote);
-                    // Update the original queue reference to exclude remote as well for shuffle logic
-                    state.originalQueue = [...state.queue]; 
+                    // Initial Queue Setup: Only do this if queue is empty
+                    if (state.queue.length === 0) {
+                        state.queue = [...local]; 
+                        state.originalQueue = [...local];
+                    }
                     
                     renderSongList('song-list', state.queue);
                     indicator.classList.add('hidden'); indicator.classList.remove('flex');
@@ -644,21 +777,10 @@
                 };
             });
         }
-
-        function saveSongToDB(data) { const tx = db.transaction('songs', 'readwrite'); tx.objectStore('songs').add(data).onsuccess = () => loadSongs(); }
-
-        function clearDatabase() { 
-            if(confirm("WARNING: This will delete ALL songs and settings. Proceed?")) { 
-                indexedDB.deleteDatabase(DB_NAME); 
-                localStorage.clear(); 
-                location.reload(); 
-            } 
-        }
-
+        function saveSongToDB(data) { const tx = db.transaction('songs', 'readwrite'); tx.objectStore('songs').add(data).onsuccess = () => { loadSongs(); showToast("Song Added!"); }; }
+        function clearDatabase() { if(confirm("Reset entire app?")) { indexedDB.deleteDatabase(DB_NAME); localStorage.clear(); location.reload(); } }
         function handleFiles(files) {
-            const indicator = document.getElementById('loading-indicator');
-            indicator.classList.remove('hidden'); indicator.classList.add('flex');
-            document.getElementById('loading-text').textContent = "Analyzing Files...";
+            document.getElementById('loading-indicator').classList.remove('hidden');
             Array.from(files).forEach(file => {
                 if(file.type.startsWith('audio/')) {
                     jsmediatags.read(file, {
@@ -671,68 +793,93 @@
                                 for(let i=0; i<data.length; i++) base64 += String.fromCharCode(data[i]);
                                 art = `data:${tags.picture.format};base64,${window.btoa(base64)}`;
                             }
-                            const song = { title: tags.title || file.name.replace(/\.[^/.]+$/, ""), artist: tags.artist || "Unknown Artist", album: tags.album || "Unknown Album", blob: file, added: Date.now(), liked: false, base64Art: art, url: URL.createObjectURL(file) };
-                            saveSongToDB(song);
+                            saveSongToDB({ title: tags.title || file.name.replace(/\.[^/.]+$/, ""), artist: tags.artist || "Unknown", album: tags.album || "Unknown", blob: file, added: Date.now(), liked: false, plays: 0, base64Art: art, url: URL.createObjectURL(file) });
                         },
-                        onError: () => {
-                            const song = { title: file.name, artist: "Unknown", album: "Unknown", blob: file, added: Date.now(), liked: false, base64Art: null, url: URL.createObjectURL(file) };
-                            saveSongToDB(song);
-                        }
+                        onError: () => saveSongToDB({ title: file.name, artist: "Unknown", album: "Unknown", blob: file, added: Date.now(), liked: false, plays: 0, base64Art: null, url: URL.createObjectURL(file) })
                     });
                 }
             });
         }
         
-        // --- Visuals & UI ---
-        
-        function updateControlStates() {
-            const shuffleIcon = document.getElementById('shuffle-icon-wrapper');
-            const repeatIcon = document.getElementById('repeat-icon-wrapper');
-            const repeatDot = document.getElementById('repeat-dot');
-            const shuffleBtn = document.getElementById('btn-shuffle');
-            const repeatBtn = document.getElementById('btn-repeat');
-
-            if (state.shuffle) {
-                shuffleBtn.classList.remove('text-slate-500');
-                shuffleIcon.classList.add('text-neon', 'icon-glow');
-            } else {
-                shuffleBtn.classList.add('text-slate-500');
-                shuffleIcon.classList.remove('text-neon', 'icon-glow');
-            }
-
-            if (state.repeat) {
-                repeatBtn.classList.remove('text-slate-500');
-                repeatIcon.classList.add('text-neon', 'icon-glow');
-                repeatDot.classList.remove('hidden');
-            } else {
-                repeatBtn.classList.add('text-slate-500');
-                repeatIcon.classList.remove('text-neon', 'icon-glow');
-                repeatDot.classList.add('hidden');
-            }
+        async function autoPopulateGitHub() {
+            const playlistName = "My Singing Monsters";
+            let msmPlaylist = state.playlists.find(p => p.name === playlistName);
+            if (!msmPlaylist) { msmPlaylist = { id: Date.now(), name: playlistName, songs: [] }; state.playlists.push(msmPlaylist); }
+            try {
+                const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`);
+                if (!response.ok) throw new Error();
+                const files = await response.json();
+                let addedCount = 0;
+                files.forEach(file => {
+                    if (file.name.endsWith('.mp3')) {
+                        let existingSong = state.songs.find(s => s.url === file.download_url);
+                        let songId = existingSong ? existingSong.id : Date.now() + Math.floor(Math.random()*100000);
+                        if (!existingSong) {
+                            state.songs.push({ id: songId, title: file.name.replace('.mp3', '').replace(/_/g, ' '), artist: "MSM-Music", album: "Stream", blob: null, added: Date.now(), liked: false, plays: 0, base64Art: null, url: file.download_url, isRemote: true });
+                            addedCount++;
+                        }
+                        if (!msmPlaylist.songs.includes(songId)) msmPlaylist.songs.push(songId);
+                    }
+                });
+                if(addedCount > 0) { showToast(`Synced ${addedCount} songs`); savePlaylists(); renderPlaylists(); }
+            } catch (e) { console.warn("GitHub Sync failed"); }
         }
-        
+
+        // --- UI UPDATES ---
         function updateUI(song) {
             document.getElementById('player-title').textContent = song.title;
             document.getElementById('player-artist').textContent = song.artist;
             
+            // Footer Art
             const art = song.base64Art ? `url('${song.base64Art}')` : 'linear-gradient(135deg, #4c1d95, #1e40af)';
             document.getElementById('player-art').style.backgroundImage = art;
-            document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-pause text-lg"></i>';
-            document.getElementById('vis-title').textContent = song.title;
-            document.getElementById('vis-artist').textContent = song.artist;
-            document.getElementById('vis-art-label').style.backgroundImage = art;
-            document.getElementById('vis-record').classList.add('vinyl-spinning');
+            document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-pause text-base"></i>';
+            
+            // Visualizer Art Logic: HIDE if no art
+            const visArt = document.getElementById('vis-art-corner');
+            if (song.base64Art) {
+                visArt.style.display = 'block';
+                visArt.style.backgroundImage = `url('${song.base64Art}')`;
+            } else {
+                visArt.style.display = 'none';
+            }
+
+            // Visualizer Text Animation
+            updateVisualizerText(song.title, song.artist);
 
             document.querySelectorAll('.active-track').forEach(el => el.classList.remove('active-track'));
             const row = document.getElementById(`row-${song.id}`);
             if(row) row.classList.add('active-track');
-
             document.getElementById('like-btn').innerHTML = song.liked ? '<i class="fa-solid fa-heart text-neon"></i>' : '<i class="fa-regular fa-heart"></i>';
+            if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, album: song.album, artwork: [{ src: song.base64Art || '', sizes: '512x512', type: 'image/png' }] });
+        }
 
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, album: song.album, artwork: [{ src: song.base64Art || '', sizes: '512x512', type: 'image/png' }] });
+        function toggleQueue() {
+            state.isQueueOpen = !state.isQueueOpen;
+            const panel = document.getElementById('queue-panel');
+            const btn = document.getElementById('btn-queue');
+            if (state.isQueueOpen) {
+                panel.classList.remove('queue-closed'); panel.classList.add('queue-open'); btn.classList.add('text-neon'); renderQueueList();
+            } else {
+                panel.classList.remove('queue-open'); panel.classList.add('queue-closed'); btn.classList.remove('text-neon');
             }
         }
+
+        function renderQueueList() {
+            const container = document.getElementById('queue-list-container');
+            container.innerHTML = '';
+            state.queue.forEach((song, idx) => {
+                const isActive = idx === state.currentIndex;
+                const el = document.createElement('div');
+                el.className = `flex items-center gap-3 p-2 rounded-md hover:bg-white/5 cursor-pointer text-sm animate-slide-in ${isActive ? 'bg-white/10 border-l-2 border-neon' : 'text-slate-400'}`;
+                el.style.animationDelay = `${idx * 0.03}s`;
+                el.onclick = () => playSong(song.id);
+                el.innerHTML = `<div class="w-8 h-8 rounded bg-slate-800 bg-cover bg-center shrink-0" style="background-image: ${song.base64Art ? `url('${song.base64Art}')` : 'none'}">${!song.base64Art ? '<i class="fa-solid fa-music text-[10px] text-slate-500 flex justify-center items-center h-full"></i>' : ''}</div><div class="flex-1 min-w-0"><div class="truncate ${isActive ? 'text-neon font-bold' : 'text-white'}">${song.title}</div><div class="text-[10px] truncate">${song.artist}</div></div>${isActive ? '<i class="fa-solid fa-volume-high text-xs text-neon"></i>' : ''}`;
+                container.appendChild(el);
+            });
+        }
+        
+        function clearQueue() { if(confirm("Clear Queue?")) { state.queue = []; state.originalQueue = []; state.currentIndex = -1; renderQueueList(); } }
 
         function drawVisualizerLoop() {
             requestAnimationFrame(drawVisualizerLoop);
@@ -742,23 +889,50 @@
             engine.analyser.getByteFrequencyData(data);
             const canvas = document.getElementById('visualizer-canvas');
             const ctx = canvas.getContext('2d');
-            const width = canvas.width;
-            const height = canvas.height;
+            const width = canvas.width; const height = canvas.height;
+            const style = state.settings.visStyle || 'mirror';
+            
             ctx.clearRect(0, 0, width, height);
-            const barWidth = (width / buffer) * 4; 
-            let x = 0;
-            const grad = ctx.createLinearGradient(0, height/2 - 100, 0, height/2 + 100);
-            grad.addColorStop(0, "rgba(0,0,0,0)");
-            grad.addColorStop(0.2, state.settings.visColor);
-            grad.addColorStop(0.8, state.settings.visColor);
-            grad.addColorStop(1, "rgba(0,0,0,0)");
-            ctx.fillStyle = grad;
-            for(let i = 0; i < buffer; i++) {
-                const barHeight = (data[i] / 255) * (height * 0.6); 
-                const startY = (height / 2) - (barHeight / 2);
-                if(barHeight > 5) { ctx.beginPath(); ctx.roundRect(x, startY, barWidth - 1, barHeight, 5); ctx.fill(); }
-                x += barWidth;
-                if(x > width) break;
+            const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim();
+
+            if(style === 'mirror') {
+                const barWidth = (width / buffer) * 8;
+                let x = 0; ctx.fillStyle = accent;
+                for(let i = 0; i < buffer/2; i++) {
+                    const barHeight = (data[i] / 255) * height * 0.8;
+                    ctx.fillRect(width/2 + x, height/2 - barHeight/2, barWidth - 1, barHeight);
+                    ctx.fillRect(width/2 - x, height/2 - barHeight/2, barWidth - 1, barHeight);
+                    x += barWidth;
+                }
+            } else if(style === 'bar') {
+                const barWidth = (width / buffer) * 2.5; let x = 0; ctx.fillStyle = accent;
+                for(let i = 0; i < buffer; i++) {
+                    const barHeight = (data[i] / 255) * height;
+                    ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+                    x += barWidth + 1;
+                }
+            } else if (style === 'wave') {
+                engine.analyser.getByteTimeDomainData(data);
+                ctx.lineWidth = 2; ctx.strokeStyle = accent; ctx.beginPath();
+                const sliceWidth = width * 1.0 / buffer; let x = 0;
+                for(let i = 0; i < buffer; i++) {
+                    const v = data[i] / 128.0; const y = v * height/2;
+                    if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    x += sliceWidth;
+                }
+                ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
+            } else if (style === 'circle') {
+                const radius = Math.min(width, height) / 3.5;
+                const cx = width / 2; const cy = height / 2;
+                ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.beginPath();
+                for (let i = 0; i < buffer; i+=10) { 
+                    const v = data[i] / 255; const h = v * 80;
+                    const angle = (i / buffer) * Math.PI * 2;
+                    const x1 = cx + Math.cos(angle) * radius; const y1 = cy + Math.sin(angle) * radius;
+                    const x2 = cx + Math.cos(angle) * (radius + h); const y2 = cy + Math.sin(angle) * (radius + h);
+                    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+                }
+                ctx.stroke();
             }
         }
         function resizeCanvas() { const c = document.getElementById('visualizer-canvas'); if(c) { c.width = c.parentElement.clientWidth; c.height = c.parentElement.clientHeight; } }
@@ -766,302 +940,204 @@
         function togglePlay() { 
             const active = getActiveAudio(); 
             if(state.queue.length === 0) return; 
-            if(state.currentIndex === -1) { 
-                playSong(state.queue[0].id); 
-                return; 
-            } 
+            if(state.currentIndex === -1) { playSong(state.queue[0].id); return; } 
             initAudioEngine();
             if(engine.audioCtx.state === 'suspended') engine.audioCtx.resume();
-
             if(state.isPlaying) { 
-                active.pause(); 
-                state.isPlaying = false; 
-                document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-play ml-1 text-lg"></i>'; 
-                document.getElementById('vis-record').classList.remove('vinyl-spinning'); 
+                active.pause(); state.isPlaying = false; 
+                document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-play ml-1 text-base"></i>'; 
             } else { 
-                active.play(); 
-                state.isPlaying = true; 
-                document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-pause text-lg"></i>'; 
-                document.getElementById('vis-record').classList.add('vinyl-spinning'); 
+                active.play(); state.isPlaying = true; 
+                document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-pause text-base"></i>'; 
             } 
         }
-        
         function nextSong() { 
             if(engine.isCrossfading) return; 
-            if(state.queue.length === 0) return;
-            let nextIdx = state.currentIndex + 1; 
-            if(nextIdx >= state.queue.length) {
-                if(state.repeat) nextIdx = 0; 
-                else return; 
+            
+            // AUTO REFILL if queue is empty
+            if(state.queue.length === 0 && state.songs.length > 0) {
+                 state.queue = [...state.songs];
             }
+            if(state.queue.length === 0) return;
+
+            let nextIdx = state.currentIndex + 1; 
+            // INFINITE LOOP: If we reach end, go back to 0
+            if(nextIdx >= state.queue.length) nextIdx = 0;
+            
             playSong(state.queue[nextIdx].id); 
         }
-        
         function prevSong() { 
-            const active = getActiveAudio(); 
-            if(active.currentTime > 3) { active.currentTime = 0; return; } 
+            const active = getActiveAudio(); if(active.currentTime > 3) { active.currentTime = 0; return; } 
             
-            let prevIdx = state.currentIndex - 1; 
-            if(prevIdx < 0) {
-                 if(state.repeat) prevIdx = state.queue.length - 1;
-                 else prevIdx = 0;
+             // AUTO REFILL if queue is empty
+            if(state.queue.length === 0 && state.songs.length > 0) {
+                 state.queue = [...state.songs];
             }
+            if(state.queue.length === 0) return;
+
+            let prevIdx = state.currentIndex - 1; 
+            // INFINITE LOOP REVERSE
+            if(prevIdx < 0) prevIdx = state.queue.length - 1; 
+            
             playSong(state.queue[prevIdx].id); 
         }
-
         function toggleShuffle() { 
-            state.shuffle = !state.shuffle; 
-            const currentSong = state.queue[state.currentIndex];
-            
+            state.shuffle = !state.shuffle; const currentSong = state.queue[state.currentIndex];
             if(state.shuffle) { 
-                let shuffled = [...state.originalQueue];
-                for (let i = shuffled.length - 1; i > 0; i--) { 
-                    const j = Math.floor(Math.random() * (i + 1)); 
-                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; 
-                } 
-                if(state.currentIndex > -1 && currentSong) { 
-                    shuffled = shuffled.filter(s => s.id !== currentSong.id); 
-                    shuffled.unshift(currentSong); 
-                    state.currentIndex = 0; 
-                }
+                let shuffled = shuffleArray([...state.originalQueue]);
+                if(state.currentIndex > -1 && currentSong) { shuffled = shuffled.filter(s => s.id !== currentSong.id); shuffled.unshift(currentSong); state.currentIndex = 0; }
                 state.queue = shuffled;
-
             } else { 
                 state.queue = [...state.originalQueue]; 
-                if(currentSong) {
-                    const newIndex = state.queue.findIndex(s => s.id === currentSong.id);
-                    state.currentIndex = newIndex > -1 ? newIndex : 0;
-                } else {
-                    state.currentIndex = 0;
-                }
+                if(currentSong) { const newIndex = state.queue.findIndex(s => s.id === currentSong.id); state.currentIndex = newIndex > -1 ? newIndex : 0; }
             } 
-            updateControlStates();
+            updateControlStates(); if(state.isQueueOpen) renderQueueList(); showToast(state.shuffle ? "Shuffle On" : "Shuffle Off");
         }
-        
-        function toggleRepeat() { 
-            state.repeat = !state.repeat; 
-            updateControlStates();
+        function shuffleArray(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex != 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
         }
+        function toggleRepeat() { state.repeat = !state.repeat; updateControlStates(); showToast(state.repeat ? "Loop On" : "Loop Off"); }
         
+        // --- SMART LIKES PLAYLIST ---
         function toggleLike() {
              if (state.currentIndex === -1) return;
-             const currentSong = state.queue[state.currentIndex];
+             const currentSong = state.queue[state.currentIndex]; 
              currentSong.liked = !currentSong.liked;
-
-             const tx = db.transaction('songs', 'readwrite');
+             
+             // Update DB
+             const tx = db.transaction('songs', 'readwrite'); 
              const store = tx.objectStore('songs');
-             const req = store.get(currentSong.id);
-             req.onsuccess = (e) => {
-                 const songToUpdate = e.target.result;
-                 if (songToUpdate) {
-                     songToUpdate.liked = currentSong.liked;
-                     store.put(songToUpdate);
-                 }
-             };
+             store.put(currentSong);
+             
+             // Manage "Liked Songs" Playlist
+             const likedName = "Liked Songs";
+             let likedPl = state.playlists.find(p => p.name === likedName);
+             if(!likedPl) {
+                 likedPl = { id: Date.now(), name: likedName, songs: [] };
+                 state.playlists.unshift(likedPl); // Add to top
+             }
+
+             if (currentSong.liked) {
+                 if(!likedPl.songs.includes(currentSong.id)) likedPl.songs.push(currentSong.id);
+             } else {
+                 likedPl.songs = likedPl.songs.filter(id => id !== currentSong.id);
+             }
+             savePlaylists();
+             renderPlaylists();
+
              document.getElementById('like-btn').innerHTML = currentSong.liked ? '<i class="fa-solid fa-heart text-neon"></i>' : '<i class="fa-regular fa-heart"></i>';
+             showToast(currentSong.liked ? "Liked" : "Unliked");
         }
 
-        function renderSongList(targetElementId = 'song-list', songsToRender = state.songs) {
-            const container = document.getElementById(targetElementId);
-            container.innerHTML = '';
-            
-            // Note: songsToRender is passed in. Callers are responsible for filtering.
-            
+        function updateControlStates() {
+            const shuffleBtn = document.getElementById('btn-shuffle'); const repeatBtn = document.getElementById('btn-repeat');
+            if (state.shuffle) { shuffleBtn.classList.remove('text-slate-500'); document.getElementById('shuffle-icon-wrapper').classList.add('text-neon', 'icon-glow'); } 
+            else { shuffleBtn.classList.add('text-slate-500'); document.getElementById('shuffle-icon-wrapper').classList.remove('text-neon', 'icon-glow'); }
+            if (state.repeat) { repeatBtn.classList.remove('text-slate-500'); document.getElementById('repeat-icon-wrapper').classList.add('text-neon', 'icon-glow'); document.getElementById('repeat-dot').classList.remove('hidden'); } 
+            else { repeatBtn.classList.add('text-slate-500'); document.getElementById('repeat-icon-wrapper').classList.remove('text-neon', 'icon-glow'); document.getElementById('repeat-dot').classList.add('hidden'); }
+        }
+
+        function renderSongList(targetElementId, songsToRender) {
+            const container = document.getElementById(targetElementId); container.innerHTML = '';
             songsToRender.forEach(song => {
-                const el = document.createElement('div');
-                el.id = `row-${song.id}`;
+                const el = document.createElement('div'); el.id = `row-${song.id}`;
                 el.className = "draggable-source flex items-center p-2 rounded-lg hover:bg-white/5 group cursor-pointer transition border-l-4 border-transparent";
                 if(state.currentIndex > -1 && state.queue[state.currentIndex]?.id === song.id) el.classList.add('active-track');
                 
-                el.onclick = () => playSong(song.id);
-                el.oncontextmenu = (e) => showContextMenu(e, song.id);
-                el.draggable = true;
+                // UPDATED: Now calls playAndGoToVisualizer
+                el.onclick = () => playAndGoToVisualizer(song.id); 
+                
+                el.oncontextmenu = (e) => showContextMenu(e, song.id); el.draggable = true;
                 el.ondragstart = (e) => { e.dataTransfer.setData('text/songid', song.id); };
-
-                let iconHtml = '';
-                if (song.base64Art) {
-                    iconHtml = ''; 
-                } else if (song.isRemote) {
-                    iconHtml = '<i class="fa-solid fa-cloud text-neon flex justify-center items-center h-full"></i>';
-                } else {
-                    iconHtml = '<i class="fa-solid fa-music text-slate-500 flex justify-center items-center h-full"></i>';
-                }
-
-                el.innerHTML = `
-                <div class="w-10 h-10 rounded bg-slate-800 bg-cover bg-center mr-4 shrink-0" style="background-image: ${song.base64Art ? `url('${song.base64Art}')` : 'none'}">
-                    ${iconHtml}
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-white truncate group-hover:text-neon transition">
-                        ${song.title}
-                        ${song.isRemote ? '<span class="ml-2 text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded border border-slate-600">STREAM</span>' : ''}
-                    </div>
-                    <div class="text-xs text-slate-400 truncate">${song.artist} • ${song.album}</div>
-                </div>`;
+                const iconHtml = song.base64Art ? '' : (song.isRemote ? '<i class="fa-solid fa-cloud text-neon flex justify-center items-center h-full"></i>' : '<i class="fa-solid fa-music text-slate-500 flex justify-center items-center h-full"></i>');
+                el.innerHTML = `<div class="w-10 h-10 rounded bg-slate-800 bg-cover bg-center mr-4 shrink-0" style="background-image: ${song.base64Art ? `url('${song.base64Art}')` : 'none'}">${iconHtml}</div><div class="flex-1 min-w-0"><div class="text-sm font-medium text-white truncate group-hover:text-neon transition">${song.title}${song.isRemote?'<span class="ml-2 text-[10px] bg-slate-700 px-1 rounded">STREAM</span>':''}</div><div class="text-xs text-slate-400 truncate">${song.artist} • ${song.album}</div></div>`;
                 container.appendChild(el);
             });
         }
-
-        function createPlaylist() { 
-            const name = prompt("Playlist Name:"); 
-            if(!name) return; 
-            state.playlists.push({ id: Date.now(), name, songs: [] }); 
-            savePlaylists(); 
-            renderPlaylists(); 
-        }
         function savePlaylists() { localStorage.setItem('pro_playlists', JSON.stringify(state.playlists)); }
-
         function renderPlaylists() {
-            const ul = document.getElementById('playlist-list');
-            ul.innerHTML = '';
+            const ul = document.getElementById('playlist-list'); ul.innerHTML = '';
             state.playlists.forEach(pl => {
                 const li = document.createElement('li');
-                li.innerHTML = `
-                    <button onclick="openPlaylist(${pl.id})" 
-                        ondragover="handleDragOver(event)" 
-                        ondragleave="handleDragLeave(event)" 
-                        ondrop="handleDrop(event, ${pl.id})"
-                        class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 flex items-center gap-3 text-slate-300 text-sm transition-colors duration-200">
-                        <i class="fa-solid fa-list-music pointer-events-none"></i> <span class="pointer-events-none">${pl.name}</span>
-                    </button>`;
+                const isLiked = pl.name === "Liked Songs";
+                const icon = isLiked ? 'fa-heart text-neon' : 'fa-list-music';
+                li.innerHTML = `<button onclick="openPlaylist(${pl.id})" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, ${pl.id})" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 flex items-center gap-3 text-slate-300 text-sm transition-colors duration-200"><i class="fa-solid ${icon} pointer-events-none"></i> <span class="pointer-events-none">${pl.name}</span></button>`;
                 ul.appendChild(li);
             });
         }
-
         function handleDragOver(e) { e.preventDefault(); e.target.classList.add('drop-target-active'); }
         function handleDragLeave(e) { e.target.classList.remove('drop-target-active'); }
         function handleDrop(e, playlistId) {
-            e.preventDefault();
-            e.target.classList.remove('drop-target-active');
+            e.preventDefault(); e.target.classList.remove('drop-target-active');
             const songId = parseInt(e.dataTransfer.getData('text/songid'));
-            if (!songId) return;
             const pl = state.playlists.find(p => p.id === playlistId);
-            if (pl && !pl.songs.includes(songId)) {
-                pl.songs.push(songId);
-                savePlaylists();
-                e.target.innerHTML += ' <i class="fa-solid fa-check text-green-400 ml-auto"></i>';
-                setTimeout(renderPlaylists, 1000); 
-            }
+            if (pl && !pl.songs.includes(songId)) { pl.songs.push(songId); savePlaylists(); showToast(`Added to ${pl.name}`); setTimeout(renderPlaylists, 1000); }
         }
-
         function renderAlbumGrid() {
-            const grid = document.getElementById('album-grid'); grid.innerHTML = '';
-            const albums = {}; 
-            // FILTER: Don't show remote songs in Albums view
-            state.songs.filter(s => !s.isRemote).forEach(s => { 
-                const name = s.album || 'Unknown'; 
-                if(!albums[name]) albums[name] = { art: s.base64Art, artist: s.artist, songs: [] }; 
-                albums[name].songs.push(s); 
-            });
+            const grid = document.getElementById('album-grid'); grid.innerHTML = ''; const albums = {}; 
+            state.songs.filter(s => !s.isRemote).forEach(s => { const name = s.album || 'Unknown'; if(!albums[name]) albums[name] = { art: s.base64Art, artist: s.artist, songs: [] }; albums[name].songs.push(s); });
             Object.keys(albums).forEach(albumName => {
                 const alb = albums[albumName]; const card = document.createElement('div'); card.className = "bg-white/5 p-4 rounded-xl hover:bg-white/10 transition cursor-pointer group"; card.onclick = () => openAlbum(albumName, alb);
                 card.innerHTML = `<div class="aspect-square rounded-lg bg-slate-800 mb-3 bg-cover bg-center shadow-lg relative" style="background-image: ${alb.art ? `url('${alb.art}')` : 'none'}">${!alb.art ? '<i class="fa-solid fa-compact-disc text-4xl text-slate-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>' : ''}</div><h3 class="font-bold text-sm truncate">${albumName}</h3>`;
                 grid.appendChild(card);
             });
         }
-        
-        function openAlbum(name, data) { 
-            document.getElementById('detail-title').textContent = name; 
-            document.getElementById('detail-artist').textContent = data.artist; 
-            document.getElementById('detail-art').style.backgroundImage = data.art ? `url('${data.art}')` : 'none'; 
-            // Update queue to Album context
-            state.queue = data.songs;
-            state.originalQueue = [...data.songs];
-            renderSongList('album-song-list', data.songs); 
-            switchView('album-detail'); 
-        }
-        
-        function openPlaylist(id) { 
-            state.activePlaylistId = id; 
-            const pl = state.playlists.find(p => p.id === id); 
-            document.getElementById('playlist-title').textContent = pl.name; 
-            const plSongs = pl.songs.map(sid => state.songs.find(s => s.id === sid)).filter(s => s); 
-            // Update queue to Playlist context
-            state.queue = plSongs;
-            state.originalQueue = [...plSongs];
-            renderSongList('playlist-song-list', plSongs); 
-            switchView('playlist'); 
-        }
-        
+        function openAlbum(name, data) { document.getElementById('detail-title').textContent = name; document.getElementById('detail-artist').textContent = data.artist; document.getElementById('detail-art').style.backgroundImage = data.art ? `url('${data.art}')` : 'none'; setQueueContext(data.songs); renderSongList('album-song-list', data.songs); switchView('album-detail'); }
+        function openPlaylist(id) { state.activePlaylistId = id; const pl = state.playlists.find(p => p.id === id); document.getElementById('playlist-title').textContent = pl.name; const plSongs = pl.songs.map(sid => state.songs.find(s => s.id === sid)).filter(s => s); setQueueContext(plSongs); renderSongList('playlist-song-list', plSongs); switchView('playlist'); }
         function deleteCurrentPlaylist() { if(!confirm("Delete this playlist?")) return; state.playlists = state.playlists.filter(p => p.id !== state.activePlaylistId); savePlaylists(); renderPlaylists(); switchView('home'); }
         function deleteSongFromContext() { if(!confirm("Delete song from library?")) return; const tx = db.transaction('songs', 'readwrite'); tx.objectStore('songs').delete(state.contextTargetId); tx.oncomplete = () => { loadSongs(); hideContextMenu(); }; }
-
         function showContextMenu(e, id) { 
-            e.preventDefault(); 
-            state.contextTargetId = id; 
-            const m = document.getElementById('context-menu'); 
-            m.style.display = 'block'; 
-            let x = e.pageX;
-            let y = e.pageY;
-            if(window.innerWidth - x < 200) x -= 200; 
-            m.style.left = x + 'px'; 
-            m.style.top = y + 'px'; 
-
-            const sub = document.getElementById('ctx-playlist-submenu');
-            sub.innerHTML = '';
-            if(state.playlists.length === 0) {
-                sub.innerHTML = '<li class="px-4 py-2 text-slate-500 italic text-xs">No playlists...</li>';
-            } else {
-                state.playlists.forEach(pl => {
-                    const li = document.createElement('li');
-                    li.className = "px-4 py-2 hover:bg-white/10 cursor-pointer text-slate-300 hover:text-white truncate";
-                    li.textContent = pl.name;
-                    li.onclick = (e) => { e.stopPropagation(); addSongToPlaylist(pl.id); };
-                    sub.appendChild(li);
-                });
-            }
+            e.preventDefault(); state.contextTargetId = id; const m = document.getElementById('context-menu'); 
+            m.style.display = 'block'; let x = e.pageX; let y = e.pageY; if(window.innerWidth - x < 200) x -= 200; m.style.left = x + 'px'; m.style.top = y + 'px'; 
+            const sub = document.getElementById('ctx-playlist-submenu'); sub.innerHTML = '';
+            if(state.playlists.length === 0) { sub.innerHTML = '<li class="px-4 py-2 text-slate-500 italic text-xs">No playlists...</li>'; } 
+            else { state.playlists.forEach(pl => { const li = document.createElement('li'); li.className = "px-4 py-2 hover:bg-white/10 cursor-pointer text-slate-300 hover:text-white truncate"; li.textContent = pl.name; li.onclick = (e) => { e.stopPropagation(); addSongToPlaylist(pl.id); }; sub.appendChild(li); }); }
         }
-        
-        function addSongToPlaylist(playlistId) {
-            const pl = state.playlists.find(p => p.id === playlistId);
-            if(pl && !pl.songs.includes(state.contextTargetId)) {
-                pl.songs.push(state.contextTargetId);
-                savePlaylists();
-                hideContextMenu();
-                alert(`Added to ${pl.name}`);
-            } else {
-                hideContextMenu();
-            }
+        function addToQueueNext() {
+            const id = state.contextTargetId; const song = state.songs.find(s => s.id === id); if (!song) return;
+            const insertIndex = state.currentIndex + 1; state.queue.splice(insertIndex, 0, song);
+            const origIndex = state.originalQueue.findIndex(s => s.id === state.queue[state.currentIndex]?.id);
+            if(origIndex > -1) state.originalQueue.splice(origIndex + 1, 0, song); else state.originalQueue.push(song);
+            hideContextMenu(); showToast("Playing next: " + song.title); if(state.isQueueOpen) renderQueueList();
         }
-
+        function addSongToPlaylist(playlistId) { const pl = state.playlists.find(p => p.id === playlistId); if(pl && !pl.songs.includes(state.contextTargetId)) { pl.songs.push(state.contextTargetId); savePlaylists(); hideContextMenu(); showToast(`Added to ${pl.name}`); } else { hideContextMenu(); } }
         function hideContextMenu() { document.getElementById('context-menu').style.display = 'none'; }
-        function updateSettings() { state.settings.crossfade = document.getElementById('setting-crossfade').value; localStorage.setItem('pro_settings', JSON.stringify(state.settings)); }
-        function applySettings() { document.getElementById('setting-crossfade').value = state.settings.crossfade; document.getElementById('setting-crossfade').nextElementSibling.value = state.settings.crossfade + 's'; }
-        function setVisColor(c) { state.settings.visColor = c; updateSettings(); }
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
         
+        function updateSettings() { state.settings.crossfade = document.getElementById('setting-crossfade').value || 4; state.settings.visStyle = document.getElementById('setting-vis-style').value; localStorage.setItem('pro_settings', JSON.stringify(state.settings)); }
+        function applySettings() { if(state.settings.visStyle) document.getElementById('setting-vis-style').value = state.settings.visStyle; }
+        function setTheme(themeName) {
+            const t = THEMES[themeName] || THEMES.midnight; const root = document.documentElement;
+            root.style.setProperty('--accent-color', t.accent); root.style.setProperty('--bg-gradient-start', t.start); root.style.setProperty('--bg-gradient-end', t.end);
+            state.settings.theme = themeName; localStorage.setItem('pro_settings', JSON.stringify(state.settings));
+        }
         function switchView(view) { 
-            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); 
-            document.getElementById('view-' + view).classList.remove('hidden'); 
-            
-            // Context Switching Logic
-            if(view === 'home') {
-                state.queue = state.songs.filter(s => !s.isRemote);
-                state.originalQueue = [...state.queue];
-                renderSongList('song-list', state.queue);
-            }
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); document.getElementById('view-' + view).classList.remove('hidden'); 
+            if(view === 'home') { const localSongs = state.songs.filter(s => !s.isRemote); setQueueContext(localSongs); renderSongList('song-list', localSongs); }
+            if(view === 'dashboard') renderDashboard();
             if(view === 'albums') renderAlbumGrid(); 
             if(view === 'visualizer') resizeCanvas(); 
         }
-        
-        function filterSongs(val) { 
-            // FILTER: Only search in local songs
-            const localOnly = state.songs.filter(s => !s.isRemote);
-            const filtered = localOnly.filter(s => s.title.toLowerCase().includes(val.toLowerCase()) || s.artist.toLowerCase().includes(val.toLowerCase())); 
-            renderSongList('song-list', filtered); 
-        }
-        
+        function toggleNewPlaylistInput() { const c = document.getElementById('new-playlist-container'); const i = document.getElementById('new-playlist-input'); c.classList.toggle('visible'); if(c.classList.contains('visible')) i.focus(); }
+        function handlePlaylistInput(e) { if(e.key === 'Enter') { const name = e.target.value.trim(); if(name) { state.playlists.push({ id: Date.now(), name, songs: [] }); savePlaylists(); renderPlaylists(); showToast(`Created playlist: ${name}`); e.target.value = ''; cancelPlaylistInput(); } } else if(e.key === 'Escape') cancelPlaylistInput(); }
+        function cancelPlaylistInput() { const c = document.getElementById('new-playlist-container'); const i = document.getElementById('new-playlist-input'); c.classList.remove('visible'); i.value = ''; }
+        function filterSongs(val) { const localOnly = state.songs.filter(s => !s.isRemote); const filtered = localOnly.filter(s => s.title.toLowerCase().includes(val.toLowerCase()) || s.artist.toLowerCase().includes(val.toLowerCase())); renderSongList('song-list', filtered); }
         function sortLibrary(type) { 
-            // Sorts the global list, then re-applies the local filter for display
-            if(type === 'title') state.songs.sort((a,b) => a.title.localeCompare(b.title)); 
-            if(type === 'artist') state.songs.sort((a,b) => a.artist.localeCompare(b.artist)); 
-            if(type === 'added') state.songs.sort((a,b) => b.added - a.added); 
-            
-            const localQueue = state.songs.filter(s => !s.isRemote);
-            state.queue = [...localQueue]; 
-            state.originalQueue = [...localQueue];
-            renderSongList('song-list', localQueue); 
+            if(type === 'title') state.songs.sort((a,b) => a.title.localeCompare(b.title)); if(type === 'artist') state.songs.sort((a,b) => a.artist.localeCompare(b.artist)); if(type === 'added') state.songs.sort((a,b) => b.added - a.added); 
+            const localQueue = state.songs.filter(s => !s.isRemote); setQueueContext(localQueue); renderSongList('song-list', localQueue); 
         }
-        
+        function setQueueContext(newSongList) { state.originalQueue = [...newSongList]; if (state.shuffle) { state.queue = shuffleArray([...state.originalQueue]); } else { state.queue = [...newSongList]; } if(state.isQueueOpen) renderQueueList(); }
         function formatTime(s) { if(isNaN(s)) return "0:00"; const m = Math.floor(s/60); const sec = Math.floor(s%60); return `${m}:${sec<10?'0'+sec:sec}`; }
     </script>
 </body>
