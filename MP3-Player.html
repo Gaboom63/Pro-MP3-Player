@@ -3,12 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gaboom's Ultimate Player v6</title>
+    <title>Gaboom's Ultimate Player v7.1 - Robust Cloud</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
 
     <script>
         tailwind.config = {
@@ -22,6 +27,7 @@
                     },
                     animation: {
                         'slide-in': 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                     },
                     keyframes: {
                         slideIn: {
@@ -61,8 +67,6 @@
         }
 
         /* --- VISUALIZER TEXT ANIMATIONS --- */
-        
-        /* 1. Wavy Animation */
         @keyframes waviy {
             0%, 40%, 100% { transform: translateY(0); }
             20% { transform: translateY(-20px); }
@@ -76,33 +80,24 @@
             animation-fill-mode: forwards;
         }
 
-        /* 2. Glint Animation */
         @keyframes shine {
             0% { background-position: 200% center; }
             100% { background-position: -200% center; }
         }
 
         .glint-text {
-            /* Theme color shines through white text */
             background: linear-gradient(to left, #fff 40%, var(--accent-color) 50%, #fff 60%);
             background-size: 200% auto;
-            
-            /* Webkit required for text clipping */
             background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            color: transparent; /* Fallback */
-            
+            color: transparent;
             animation: shine 1s linear forwards;
-            display: inline-block; /* Helps with gradient rendering */
+            display: inline-block;
         }
         
-        .normal-text {
-            color: white;
-            opacity: 1;
-        }
+        .normal-text { color: white; opacity: 1; }
 
-        /* --- Dashboard Cards --- */
         .dash-card {
             position: relative; overflow: hidden;
             transition: transform 0.3s, box-shadow 0.3s;
@@ -114,7 +109,6 @@
             background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
         }
 
-        /* --- Playlist Input --- */
         #new-playlist-container {
             max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s ease;
         }
@@ -122,7 +116,6 @@
             max-height: 50px; opacity: 1; margin-bottom: 8px;
         }
 
-        /* --- Misc --- */
         .drop-target-active {
             background: rgba(168, 85, 247, 0.2) !important;
             border: 1px dashed var(--accent-color) !important;
@@ -165,19 +158,59 @@
         }
         .progress-wrapper:hover .progress-handle { transform: translateY(-50%) scale(1); }
         
-        /* Specific Styles for Vis Text to ensure bottom placement */
         #vis-text-wrapper {
-            position: absolute;
-            bottom: 15%;
-            left: 0;
-            width: 100%;
-            text-align: center;
-            z-index: 30;
-            pointer-events: none;
+            position: absolute; bottom: 15%; left: 0; width: 100%;
+            text-align: center; z-index: 30; pointer-events: none;
         }
+
+        /* --- AUTH MODAL --- */
+        #auth-modal {
+            position: fixed; inset: 0; z-index: 200;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #auth-modal.open { opacity: 1; pointer-events: auto; }
+        .auth-box {
+            background: #1e293b; border: 1px solid rgba(255,255,255,0.1);
+            padding: 2rem; border-radius: 1rem; width: 100%; max-width: 400px;
+            transform: scale(0.95); transition: transform 0.3s;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        #auth-modal.open .auth-box { transform: scale(1); }
     </style>
 </head>
 <body class="text-white h-screen overflow-hidden flex flex-col font-sans select-none" onclick="hideContextMenu()">
+
+    <!-- AUTH MODAL -->
+    <div id="auth-modal">
+        <div class="auth-box relative">
+            <button onclick="toggleAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h2 id="auth-title" class="text-2xl font-bold mb-6 text-center">Cloud Sign In</h2>
+            
+            <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 uppercase font-bold mb-1">Email</label>
+                    <input type="email" id="auth-email" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white outline-none focus:border-neon">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 uppercase font-bold mb-1">Password</label>
+                    <input type="password" id="auth-password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white outline-none focus:border-neon">
+                </div>
+                <div id="auth-error" class="text-red-400 text-xs hidden"></div>
+                <button type="submit" id="auth-submit" class="w-full bg-neon hover:bg-white hover:text-black transition py-2 rounded font-bold">Sign In</button>
+            </form>
+
+            <div class="mt-4 text-center text-sm text-slate-400">
+                <span id="auth-switch-text">New here?</span> 
+                <button onclick="toggleAuthMode()" id="auth-switch-btn" class="text-neon hover:underline">Create Account</button>
+            </div>
+            <div class="mt-6 pt-4 border-t border-white/5 text-center">
+                <p class="text-[10px] text-slate-500">Sync your playlists and remote library across devices.</p>
+                <p id="local-mode-warning" class="text-[10px] text-yellow-500 hidden mt-2">Cloud services unavailable (Local Mode)</p>
+            </div>
+        </div>
+    </div>
 
     <div id="toast" class="glass-panel border-neon/50 border text-sm font-medium shadow-lg shadow-neon/10">Action Completed</div>
 
@@ -190,7 +223,21 @@
                         <i class="fa-solid fa-bolt"></i>
                     </div>
                 </div>
-                <h1 class="text-xl font-bold tracking-tight">GaboomsPlayer <span class="text-xs align-top text-neon">v6</span></h1>
+                <h1 class="text-xl font-bold tracking-tight">GaboomsPlayer <span class="text-xs align-top text-neon">v7.1</span></h1>
+            </div>
+
+            <!-- USER PROFILE SECTION -->
+            <div class="px-4 mb-4">
+                <div id="user-profile-card" class="bg-white/5 border border-white/5 rounded-xl p-3 flex items-center gap-3 hover:bg-white/10 transition cursor-pointer" onclick="toggleAuthModal()">
+                    <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div id="profile-name" class="text-sm font-bold truncate">Guest</div>
+                        <div id="profile-status" class="text-[10px] text-slate-400 truncate">Click to Sync</div>
+                    </div>
+                    <i class="fa-solid fa-cloud text-slate-600" id="cloud-icon"></i>
+                </div>
             </div>
 
             <nav class="flex-1 overflow-y-auto px-4 space-y-4">
@@ -217,13 +264,17 @@
                     </div>
 
                     <ul id="playlist-list" class="space-y-1 pb-4">
-                        </ul>
+                        <!-- Playlists rendered here -->
+                    </ul>
                 </div>
             </nav>
 
             <div class="p-4 border-t border-white/5 space-y-2">
                 <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 flex items-center gap-3 text-slate-300" onclick="switchView('settings')">
                     <i class="fa-solid fa-gear w-5"></i> Settings
+                </button>
+                <button id="logout-btn" class="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/10 flex items-center gap-3 text-red-400 hidden" onclick="signOutUser()">
+                    <i class="fa-solid fa-sign-out-alt w-5"></i> Sign Out
                 </button>
             </div>
         </aside>
@@ -257,9 +308,11 @@
             <div id="views-container" class="flex-1 overflow-y-auto p-6 scroll-smooth relative">
                 
                 <div id="view-dashboard" class="view-section">
-                    <div class="mb-6">
-                        <h1 class="text-3xl font-bold mb-1">Welcome Back</h1>
-                        <p class="text-slate-400 text-sm">Pick up where you left off.</p>
+                    <div class="mb-6 flex justify-between items-end">
+                        <div>
+                            <h1 class="text-3xl font-bold mb-1">Welcome Back</h1>
+                            <p class="text-slate-400 text-sm">Pick up where you left off.</p>
+                        </div>
                     </div>
 
                     <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-neon"><i class="fa-solid fa-fire"></i> Jump Back In</h3>
@@ -355,15 +408,13 @@
                     </div>
                 </div>
 
-                <!-- UPDATED VISUALIZER LAYOUT -->
+                <!-- VISUALIZER LAYOUT -->
                 <div id="view-visualizer" class="hidden h-full flex flex-col items-center justify-center relative view-section overflow-hidden">
                     <canvas id="visualizer-canvas" class="absolute inset-0 w-full h-full z-0 opacity-60"></canvas>
                     
                     <div id="vis-art-corner" class="absolute top-8 right-8 w-48 h-48 rounded-xl bg-slate-800 bg-cover bg-center shadow-2xl border border-white/10 z-20"></div>
 
-                    <!-- Absolute positioning wrapper for bottom placement -->
                     <div id="vis-text-wrapper" class="px-10">
-                        <!-- Reduced text size per request -->
                         <h2 id="vis-title-container" class="text-3xl md:text-4xl font-bold text-white mb-1 tracking-tight drop-shadow-xl inline-block normal-text"></h2>
                         <p id="vis-artist" class="text-base text-slate-300 font-light drop-shadow-md">Unknown</p>
                     </div>
@@ -443,7 +494,7 @@
     </div>
 
     <script>
-        // --- THEMES & CONFIG ---
+        // --- 1. INITIALIZE CONSTANTS & STATE FIRST (Prevents ReferenceError) ---
         const THEMES = {
             midnight: { accent: '#a855f7', start: '#0f172a', end: '#1e1b4b' },
             cyberpunk: { accent: '#facc15', start: '#000000', end: '#1a1a1a' },
@@ -452,33 +503,87 @@
         };
 
         const GITHUB_CONFIG = { enabled: true, owner: 'Gaboom63', repo: 'Pro-MP3-Player', path: 'MSM-Music' };
+        
+        // Define state immediately so it exists even if Firebase init fails
+        const state = {
+            songs: [], 
+            playlists: JSON.parse(localStorage.getItem('pro_playlists') || '[]'),
+            settings: JSON.parse(localStorage.getItem('pro_settings') || '{"crossfade": 4, "theme": "midnight", "visStyle": "mirror"}'),
+            queue: [], originalQueue: [], currentIndex: -1, isPlaying: false, shuffle: false, repeat: false,
+            contextTargetId: null, activePlaylistId: null, isQueueOpen: false,
+            user: null, 
+            authMode: 'login', // 'login' or 'register'
+            unsubSongs: null, unsubPlaylists: null,
+            localDB: null // For IndexedDB
+        };
+
         const DB_NAME = 'ProPlayerDB';
         const DB_VER = 1;
-        let db;
+        const jsmediatags = window.jsmediatags;
 
+        // --- 2. SAFE FIREBASE INIT (Handles missing config) ---
+        let app = null;
+        let auth = null;
+        let db = null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                app = firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                console.log("Firebase initialized successfully");
+            } else {
+                console.warn("Firebase Config missing. Running in Local Mode.");
+            }
+        } catch (e) {
+            console.error("Firebase init failed:", e);
+        }
+        
+        // --- AUDIO ENGINE ---
         const engine = {
             audioA: new Audio(), audioB: new Audio(), activeDeck: 'A', isCrossfading: false,
             audioCtx: null, analyser: null, gainA: null, gainB: null
         };
         engine.audioA.crossOrigin = "anonymous"; engine.audioB.crossOrigin = "anonymous";
 
-        const state = {
-            songs: [], playlists: JSON.parse(localStorage.getItem('pro_playlists') || '[]'),
-            settings: JSON.parse(localStorage.getItem('pro_settings') || '{"crossfade": 4, "theme": "midnight", "visStyle": "mirror"}'),
-            queue: [], originalQueue: [], currentIndex: -1, isPlaying: false, shuffle: false, repeat: false,
-            contextTargetId: null, activePlaylistId: null, isQueueOpen: false
-        };
-
-        const jsmediatags = window.jsmediatags;
-
+        // --- INITIALIZATION ---
         window.addEventListener('load', async () => {
-            await initDB();
-            await loadSongs(); 
-            if(GITHUB_CONFIG.enabled) await autoPopulateGitHub();
+            await initIndexedDB();
             
+            if (auth) {
+                // Cloud Mode
+                auth.onAuthStateChanged(async (user) => {
+                    state.user = user;
+                    updateUserProfileUI();
+                    
+                    if (user) {
+                        showToast(`Signed in as ${user.email}`);
+                        subscribeToCloudData(user.uid);
+                        document.getElementById('logout-btn').classList.remove('hidden');
+                    } else {
+                        document.getElementById('logout-btn').classList.add('hidden');
+                        unsubscribeFromCloud();
+                        await loadLocalSongs();
+                        renderPlaylists();
+                        if(GITHUB_CONFIG.enabled) await autoPopulateGitHub();
+                    }
+                });
+            } else {
+                // Local Only Mode (Fallback)
+                console.log("Entering Local Mode (No Auth)");
+                updateUserProfileUI();
+                await loadLocalSongs();
+                renderPlaylists();
+                if(GITHUB_CONFIG.enabled) await autoPopulateGitHub();
+                
+                // Show warning in auth modal
+                document.getElementById('local-mode-warning').classList.remove('hidden');
+            }
+
             setTheme(state.settings.theme || 'midnight');
             applySettings();
-            renderPlaylists();
             
             switchView('dashboard');
             
@@ -507,16 +612,191 @@
             updateControlStates();
         });
 
-        function handleTrackEnd() {
-            // Updated to allow infinite play logic inside nextSong to take over
-            nextSong();
+        // --- CLOUD SYNC LOGIC ---
+        function subscribeToCloudData(userId) {
+            if (!db) return; // Safety check
+
+            unsubscribeFromCloud();
+
+            const songsRef = db.collection('artifacts').doc(appId).collection('users').doc(userId).collection('songs');
+            const playlistsRef = db.collection('artifacts').doc(appId).collection('users').doc(userId).collection('playlists');
+
+            document.getElementById('loading-indicator').classList.remove('hidden');
+            document.getElementById('loading-indicator').classList.add('flex');
+
+            state.unsubSongs = songsRef.onSnapshot(snapshot => {
+                const cloudSongs = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.isLocalFile && !data.base64Data) {
+                         data.url = null;
+                    } else if (data.base64Data) {
+                         data.url = data.base64Data; 
+                    }
+                    cloudSongs.push(data);
+                });
+                state.songs = cloudSongs;
+                
+                if (state.songs.length === 0 && GITHUB_CONFIG.enabled) {
+                    autoPopulateGitHub();
+                } else {
+                    refreshViews();
+                }
+                document.getElementById('loading-indicator').classList.add('hidden');
+            }, error => {
+                console.error("Error syncing songs:", error);
+                showToast("Sync Error");
+            });
+
+            state.unsubPlaylists = playlistsRef.onSnapshot(snapshot => {
+                const cloudPlaylists = [];
+                snapshot.forEach(doc => cloudPlaylists.push(doc.data()));
+                state.playlists = cloudPlaylists;
+                renderPlaylists();
+            });
         }
 
-        // --- DASHBOARD LOGIC ---
+        function unsubscribeFromCloud() {
+            if (state.unsubSongs) state.unsubSongs();
+            if (state.unsubPlaylists) state.unsubPlaylists();
+            state.unsubSongs = null;
+            state.unsubPlaylists = null;
+        }
+
+        async function uploadSongToCloud(songData) {
+            if (!state.user || !db) return;
+            
+            const ONE_MB = 900 * 1024; 
+            let payload = { ...songData };
+            const docId = songData.id.toString();
+
+            if (songData.blob) {
+                if (songData.blob.size > ONE_MB) {
+                    payload.isLocalFile = true;
+                    payload.blob = null;
+                    payload.url = null;
+                    payload.base64Data = null;
+                    showToast(`Synced "${songData.title}" info (File too large)`);
+                } else {
+                    try {
+                        const base64 = await blobToBase64(songData.blob);
+                        payload.base64Data = base64;
+                        payload.blob = null;
+                        payload.isLocalFile = false;
+                    } catch (e) {
+                        console.error("Conversion failed", e);
+                        payload.isLocalFile = true;
+                    }
+                }
+            }
+            
+            delete payload.blob;
+            
+            db.collection('artifacts').doc(appId).collection('users').doc(state.user.uid).collection('songs').doc(docId).set(payload)
+                .then(() => console.log("Song synced"))
+                .catch(e => console.error("Sync failed", e));
+        }
+        
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function syncPlaylistsToCloud() {
+            if (!state.user || !db) {
+                localStorage.setItem('pro_playlists', JSON.stringify(state.playlists));
+                return;
+            }
+            state.playlists.forEach(pl => {
+                db.collection('artifacts').doc(appId).collection('users').doc(state.user.uid).collection('playlists').doc(pl.id.toString()).set(pl);
+            });
+        }
+
+        // --- AUTH UI LOGIC ---
+        function toggleAuthModal() {
+            // Guard clause if state isn't ready (though moved def fixes this)
+            if (!state) return; 
+
+            if (state.user && !document.getElementById('auth-modal').classList.contains('open')) {
+                if(confirm("Sign out?")) signOutUser();
+                return;
+            }
+            document.getElementById('auth-modal').classList.toggle('open');
+        }
+
+        function toggleAuthMode() {
+            state.authMode = state.authMode === 'login' ? 'register' : 'login';
+            document.getElementById('auth-title').textContent = state.authMode === 'login' ? 'Cloud Sign In' : 'Create Account';
+            document.getElementById('auth-submit').textContent = state.authMode === 'login' ? 'Sign In' : 'Sign Up';
+            document.getElementById('auth-switch-text').textContent = state.authMode === 'login' ? 'New here?' : 'Already have an account?';
+            document.getElementById('auth-switch-btn').textContent = state.authMode === 'login' ? 'Create Account' : 'Sign In';
+            document.getElementById('auth-error').classList.add('hidden');
+        }
+
+        function handleAuth(e) {
+            e.preventDefault();
+            if (!auth) {
+                alert("Cloud services are not available in this environment.");
+                return;
+            }
+
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const errorEl = document.getElementById('auth-error');
+
+            const p = state.authMode === 'login' 
+                ? auth.signInWithEmailAndPassword(email, password)
+                : auth.createUserWithEmailAndPassword(email, password);
+
+            p.then(() => {
+                toggleAuthModal();
+                errorEl.classList.add('hidden');
+                document.getElementById('auth-form').reset();
+            }).catch(err => {
+                errorEl.textContent = err.message;
+                errorEl.classList.remove('hidden');
+            });
+        }
+
+        function signOutUser() {
+            if (!auth) return;
+            auth.signOut().then(() => {
+                showToast("Signed Out");
+                state.songs = [];
+                state.playlists = [];
+                renderSongList('song-list', []);
+                renderPlaylists();
+            });
+        }
+
+        function updateUserProfileUI() {
+            const nameEl = document.getElementById('profile-name');
+            const statusEl = document.getElementById('profile-status');
+            const cloudIcon = document.getElementById('cloud-icon');
+            
+            if (state.user) {
+                nameEl.textContent = state.user.email.split('@')[0];
+                statusEl.textContent = 'Cloud Active';
+                cloudIcon.classList.add('text-neon');
+                cloudIcon.classList.remove('text-slate-600');
+            } else {
+                nameEl.textContent = 'Guest';
+                statusEl.textContent = auth ? 'Click to Sync' : 'Local Mode';
+                cloudIcon.classList.remove('text-neon');
+                cloudIcon.classList.add('text-slate-600');
+                if (!auth) cloudIcon.classList.add('opacity-50');
+            }
+        }
+
+        // --- CORE FUNCTIONALITY ---
+        function handleTrackEnd() { nextSong(); }
+
         function renderDashboard() {
             const content = document.getElementById('dashboard-content');
-            
-            // Sort songs by plays
             const topSongs = [...state.songs].sort((a,b) => (b.plays || 0) - (a.plays || 0)).filter(s => (s.plays || 0) > 0).slice(0, 3);
             
             if(topSongs.length === 0) {
@@ -525,133 +805,71 @@
             }
 
             let html = '';
-            
-            // #1 Song (Big Left Card)
+            // Top Song
             if(topSongs[0]) {
                 const s = topSongs[0];
                 const art = s.base64Art ? `url('${s.base64Art}')` : 'linear-gradient(135deg, #4c1d95, #1e40af)';
-                // UPDATED: Now calls playLibrarySong instead of just playSong
-                html += `
-                <div onclick="playLibrarySong(${s.id});" class="md:col-span-2 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-6 flex flex-col justify-end" style="background-image: ${art}">
-                    <div class="relative z-10">
-                        <div class="text-xs font-bold bg-neon text-white px-2 py-1 rounded w-max mb-2">MOST PLAYED</div>
-                        <h2 class="text-3xl font-bold text-white drop-shadow-md truncate">${s.title}</h2>
-                        <p class="text-lg text-slate-200 drop-shadow-md truncate">${s.artist}</p>
-                        <p class="text-xs text-slate-300 mt-1"><i class="fa-solid fa-play text-[10px] mr-1"></i> ${s.plays} plays</p>
-                    </div>
-                </div>`;
+                html += `<div onclick="playLibrarySong(${s.id});" class="md:col-span-2 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-6 flex flex-col justify-end" style="background-image: ${art}"><div class="relative z-10"><div class="text-xs font-bold bg-neon text-white px-2 py-1 rounded w-max mb-2">MOST PLAYED</div><h2 class="text-3xl font-bold text-white drop-shadow-md truncate">${s.title}</h2><p class="text-lg text-slate-200 drop-shadow-md truncate">${s.artist}</p><p class="text-xs text-slate-300 mt-1"><i class="fa-solid fa-play text-[10px] mr-1"></i> ${s.plays} plays</p></div></div>`;
             }
-
-            // Right Column Stack
+            // List
             html += '<div class="flex flex-col gap-6 h-full">';
-            
-            if(topSongs[1]) {
-                const s = topSongs[1];
+            topSongs.slice(1).forEach((s, idx) => {
                 const art = s.base64Art ? `url('${s.base64Art}')` : 'linear-gradient(135deg, #1e40af, #0f172a)';
-                html += `
-                <div onclick="playLibrarySong(${s.id});" class="flex-1 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-4 flex flex-col justify-end" style="background-image: ${art}">
-                    <div class="relative z-10">
-                         <div class="text-[10px] font-bold bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded w-max mb-1">#2</div>
-                         <h3 class="font-bold text-white truncate text-lg drop-shadow-md">${s.title}</h3>
-                         <p class="text-sm text-slate-300 drop-shadow-md truncate">${s.artist}</p>
-                    </div>
-                </div>`;
-            }
-            if(topSongs[2]) {
-                const s = topSongs[2];
-                const art = s.base64Art ? `url('${s.base64Art}')` : 'linear-gradient(135deg, #334155, #0f172a)';
-                html += `
-                <div onclick="playLibrarySong(${s.id});" class="flex-1 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-4 flex flex-col justify-end" style="background-image: ${art}">
-                    <div class="relative z-10">
-                         <div class="text-[10px] font-bold bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded w-max mb-1">#3</div>
-                         <h3 class="font-bold text-white truncate text-lg drop-shadow-md">${s.title}</h3>
-                         <p class="text-sm text-slate-300 drop-shadow-md truncate">${s.artist}</p>
-                    </div>
-                </div>`;
-            }
+                html += `<div onclick="playLibrarySong(${s.id});" class="flex-1 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-4 flex flex-col justify-end" style="background-image: ${art}"><div class="relative z-10"><div class="text-[10px] font-bold bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded w-max mb-1">#${idx+2}</div><h3 class="font-bold text-white truncate text-lg drop-shadow-md">${s.title}</h3><p class="text-sm text-slate-300 drop-shadow-md truncate">${s.artist}</p></div></div>`;
+            });
             html += '</div>';
-
             content.innerHTML = html;
         }
 
-        // New function to handle playing from dashboard with full context
-        function playLibrarySong(id) {
-            setQueueContext(state.songs);
-            playSong(id);
-            switchView('visualizer');
-        }
-        
-        // --- NEW WRAPPER FOR CLICK TO PLAY + VISUALIZER ---
-        function playAndGoToVisualizer(id) {
-            playSong(id);
-            switchView('visualizer');
-        }
+        function playLibrarySong(id) { setQueueContext(state.songs); playSong(id); switchView('visualizer'); }
+        function playAndGoToVisualizer(id) { playSong(id); switchView('visualizer'); }
 
         function incrementPlayCount(song) {
             song.plays = (song.plays || 0) + 1;
-            const tx = db.transaction('songs', 'readwrite');
-            const store = tx.objectStore('songs');
-            store.put(song);
+            if (state.user && db) {
+                 db.collection('artifacts').doc(appId).collection('users').doc(state.user.uid).collection('songs').doc(song.id.toString()).update({ plays: song.plays }).catch(() => {});
+            } else {
+                const tx = state.localDB.transaction('songs', 'readwrite');
+                tx.objectStore('songs').put(song);
+            }
         }
 
-        // --- UPDATED VISUALIZER ANIMATION LOGIC ---
         function updateVisualizerText(title, artist) {
             const container = document.getElementById('vis-title-container');
-            
-            // 1. Reset everything
             container.className = 'text-3xl md:text-4xl font-bold text-white mb-1 tracking-tight drop-shadow-xl inline-block normal-text'; 
             container.innerHTML = ''; 
-            
-            // Clear any pending timeouts
             if (window.glintTimeout) clearTimeout(window.glintTimeout);
             if (window.resetTimeout) clearTimeout(window.resetTimeout);
 
-            // 2. Wave Phase
             const chars = title.split('');
             chars.forEach((char, i) => {
                 const span = document.createElement('span');
                 span.textContent = char === ' ' ? '\u00A0' : char;
                 span.className = 'wave-char';
-                // Staggered animation: i * 0.1s creates the left-to-right ripple
                 span.style.animation = `waviy 1s ease forwards ${i * 0.1}s`;
                 container.appendChild(span);
             });
 
-            // 3. Glint Phase Calculation
-            // Wait for wave to finish (stagger + duration)
             const waveDuration = (chars.length * 0.1) + 1.0;
-            
             window.glintTimeout = setTimeout(() => {
-                // Flatten text and prepare for glint
                 container.textContent = title; 
-                // Remove normal-text, add glint-text
-                container.classList.remove('normal-text');
-                container.classList.add('glint-text');
-                
-                // 4. Reset after Glint
-                // Glint animation is set to 1s in CSS
+                container.classList.remove('normal-text'); container.classList.add('glint-text');
                 window.resetTimeout = setTimeout(() => {
-                     container.classList.remove('glint-text');
-                     container.classList.add('normal-text');
-                }, 1000); // 1s matches CSS animation duration
-                
+                     container.classList.remove('glint-text'); container.classList.add('normal-text');
+                }, 1000); 
             }, waveDuration * 1000);
-
             document.getElementById('vis-artist').textContent = artist;
         }
 
-        // --- AUDIO ENGINE ---
         function initAudioEngine() {
             if(engine.audioCtx) return;
             const AC = window.AudioContext || window.webkitAudioContext;
             engine.audioCtx = new AC();
             engine.analyser = engine.audioCtx.createAnalyser();
-            engine.analyser.fftSize = 2048; 
-            engine.analyser.smoothingTimeConstant = 0.85; 
+            engine.analyser.fftSize = 2048; engine.analyser.smoothingTimeConstant = 0.85; 
             const sourceA = engine.audioCtx.createMediaElementSource(engine.audioA);
             const sourceB = engine.audioCtx.createMediaElementSource(engine.audioB);
-            engine.gainA = engine.audioCtx.createGain();
-            engine.gainB = engine.audioCtx.createGain();
+            engine.gainA = engine.audioCtx.createGain(); engine.gainB = engine.audioCtx.createGain();
             sourceA.connect(engine.gainA); sourceB.connect(engine.gainB);
             engine.gainA.connect(engine.analyser); engine.gainB.connect(engine.analyser);
             engine.analyser.connect(engine.audioCtx.destination);
@@ -678,10 +896,7 @@
             initAudioEngine();
             if(engine.audioCtx.state === 'suspended') engine.audioCtx.resume();
             
-            // SAFETY CHECK: If queue is empty but songs exist, refill queue to prevent stoppage
-            if (state.queue.length === 0 && state.songs.length > 0) {
-                state.queue = [...state.songs];
-            }
+            if (state.queue.length === 0 && state.songs.length > 0) state.queue = [...state.songs];
 
             let index = state.queue.findIndex(s => s.id === songId);
             if(index === -1) {
@@ -691,9 +906,14 @@
             }
             state.currentIndex = index;
             const song = state.queue[index];
-            if(state.isQueueOpen) renderQueueList();
 
-            // Track Play
+            if(!song.url && !song.blob) {
+                showToast("Missing File: " + song.title);
+                setTimeout(nextSong, 2000);
+                return;
+            }
+
+            if(state.isQueueOpen) renderQueueList();
             incrementPlayCount(song);
 
             let targetAudio = engine.activeDeck === 'A' ? engine.audioA : engine.audioB;
@@ -703,19 +923,25 @@
                 engine.isCrossfading = false;
                 const other = engine.activeDeck === 'A' ? engine.audioB : engine.audioA;
                 other.pause();
-                targetAudio.src = song.url;
+                targetAudio.src = song.url || URL.createObjectURL(song.blob);
                 targetAudio.currentTime = 0;
-                targetAudio.play().then(() => { state.isPlaying = true; updateUI(song); }).catch(e => console.error(e));
+                targetAudio.play().then(() => { state.isPlaying = true; updateUI(song); }).catch(e => { console.error(e); showToast("Playback Error"); });
             }
         }
 
         function performCrossfade() {
-            // Infinite Queue Logic for Crossfade
             let nextIdx = state.currentIndex + 1;
-            if(nextIdx >= state.queue.length) nextIdx = 0; // Loop back to start automatically
+            if(nextIdx >= state.queue.length) nextIdx = 0;
             
             engine.isCrossfading = true; 
             const nextSong = state.queue[nextIdx];
+            
+            if (!nextSong.url && !nextSong.blob) {
+                state.currentIndex = nextIdx;
+                nextSong(); 
+                return;
+            }
+
             incrementPlayCount(nextSong);
 
             const outgoingDeck = engine.activeDeck;
@@ -725,7 +951,8 @@
             const outgoingAudio = outgoingDeck === 'A' ? engine.audioA : engine.audioB;
             const incomingAudio = incomingDeck === 'A' ? engine.audioA : engine.audioB;
 
-            incomingAudio.src = nextSong.url; incomingAudio.currentTime = 0;
+            incomingAudio.src = nextSong.url || URL.createObjectURL(nextSong.blob); 
+            incomingAudio.currentTime = 0;
             incomingGain.gain.setValueAtTime(0, engine.audioCtx.currentTime);
             
             incomingAudio.play().then(() => {
@@ -753,32 +980,58 @@
 
         function setVolume(val) { engine.audioA.volume = val; engine.audioB.volume = val; }
 
-        // --- DB / FILES ---
-        function initDB() { return new Promise((resolve) => { const req = indexedDB.open(DB_NAME, DB_VER); req.onupgradeneeded = e => { const db = e.target.result; if(!db.objectStoreNames.contains('songs')) db.createObjectStore('songs', { keyPath: 'id', autoIncrement: true }); }; req.onsuccess = e => { db = e.target.result; resolve(); }; }); }
-        function loadSongs() {
+        // --- LOCAL DATABASE ---
+        function initIndexedDB() { 
+            return new Promise((resolve) => { 
+                const req = indexedDB.open(DB_NAME, DB_VER); 
+                req.onupgradeneeded = e => { 
+                    const db = e.target.result; 
+                    if(!db.objectStoreNames.contains('songs')) db.createObjectStore('songs', { keyPath: 'id', autoIncrement: true }); 
+                }; 
+                req.onsuccess = e => { 
+                    state.localDB = e.target.result; 
+                    resolve(); 
+                }; 
+            }); 
+        }
+
+        function loadLocalSongs() {
             return new Promise((resolve) => {
                 const indicator = document.getElementById('loading-indicator');
                 indicator.classList.remove('hidden'); indicator.classList.add('flex');
-                const tx = db.transaction('songs', 'readonly');
+                const tx = state.localDB.transaction('songs', 'readonly');
                 tx.objectStore('songs').getAll().onsuccess = e => {
                     const rawSongs = e.target.result || [];
-                    state.songs = rawSongs.map(s => { if(s.blob && !s.url) s.url = URL.createObjectURL(s.blob); return s; });
+                    state.songs = rawSongs.map(s => { 
+                        if(s.blob && !s.url) s.url = URL.createObjectURL(s.blob); 
+                        return s; 
+                    });
+                    
                     const local = state.songs.filter(s => !s.isRemote);
+                    if (state.queue.length === 0) { state.queue = [...local]; state.originalQueue = [...local]; }
                     
-                    // Initial Queue Setup: Only do this if queue is empty
-                    if (state.queue.length === 0) {
-                        state.queue = [...local]; 
-                        state.originalQueue = [...local];
-                    }
-                    
-                    renderSongList('song-list', state.queue);
+                    refreshViews();
                     indicator.classList.add('hidden'); indicator.classList.remove('flex');
                     resolve(); 
                 };
             });
         }
-        function saveSongToDB(data) { const tx = db.transaction('songs', 'readwrite'); tx.objectStore('songs').add(data).onsuccess = () => { loadSongs(); showToast("Song Added!"); }; }
-        function clearDatabase() { if(confirm("Reset entire app?")) { indexedDB.deleteDatabase(DB_NAME); localStorage.clear(); location.reload(); } }
+
+        function saveSongToLocal(data) { 
+            if(state.user && db) {
+                uploadSongToCloud(data);
+            } else {
+                const tx = state.localDB.transaction('songs', 'readwrite'); 
+                tx.objectStore('songs').add(data).onsuccess = () => { loadLocalSongs(); showToast("Song Added (Local)"); };
+            }
+        }
+
+        function refreshViews() {
+            renderSongList('song-list', state.songs);
+            if(document.getElementById('view-dashboard').classList.contains('hidden') === false) renderDashboard();
+            if(document.getElementById('view-albums').classList.contains('hidden') === false) renderAlbumGrid();
+        }
+
         function handleFiles(files) {
             document.getElementById('loading-indicator').classList.remove('hidden');
             Array.from(files).forEach(file => {
@@ -793,9 +1046,13 @@
                                 for(let i=0; i<data.length; i++) base64 += String.fromCharCode(data[i]);
                                 art = `data:${tags.picture.format};base64,${window.btoa(base64)}`;
                             }
-                            saveSongToDB({ title: tags.title || file.name.replace(/\.[^/.]+$/, ""), artist: tags.artist || "Unknown", album: tags.album || "Unknown", blob: file, added: Date.now(), liked: false, plays: 0, base64Art: art, url: URL.createObjectURL(file) });
+                            const songData = { id: Date.now() + Math.random(), title: tags.title || file.name.replace(/\.[^/.]+$/, ""), artist: tags.artist || "Unknown", album: tags.album || "Unknown", blob: file, added: Date.now(), liked: false, plays: 0, base64Art: art, url: URL.createObjectURL(file) };
+                            saveSongToLocal(songData);
                         },
-                        onError: () => saveSongToDB({ title: file.name, artist: "Unknown", album: "Unknown", blob: file, added: Date.now(), liked: false, plays: 0, base64Art: null, url: URL.createObjectURL(file) })
+                        onError: () => {
+                             const songData = { id: Date.now() + Math.random(), title: file.name, artist: "Unknown", album: "Unknown", blob: file, added: Date.now(), liked: false, plays: 0, base64Art: null, url: URL.createObjectURL(file) };
+                             saveSongToLocal(songData);
+                        }
                     });
                 }
             });
@@ -804,7 +1061,12 @@
         async function autoPopulateGitHub() {
             const playlistName = "My Singing Monsters";
             let msmPlaylist = state.playlists.find(p => p.name === playlistName);
-            if (!msmPlaylist) { msmPlaylist = { id: Date.now(), name: playlistName, songs: [] }; state.playlists.push(msmPlaylist); }
+            
+            if (!msmPlaylist) { 
+                msmPlaylist = { id: Date.now(), name: playlistName, songs: [] }; 
+                if (!state.user) state.playlists.push(msmPlaylist); 
+            }
+
             try {
                 const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`);
                 if (!response.ok) throw new Error();
@@ -815,27 +1077,35 @@
                         let existingSong = state.songs.find(s => s.url === file.download_url);
                         let songId = existingSong ? existingSong.id : Date.now() + Math.floor(Math.random()*100000);
                         if (!existingSong) {
-                            state.songs.push({ id: songId, title: file.name.replace('.mp3', '').replace(/_/g, ' '), artist: "MSM-Music", album: "Stream", blob: null, added: Date.now(), liked: false, plays: 0, base64Art: null, url: file.download_url, isRemote: true });
-                            addedCount++;
+                            const newSong = { id: songId, title: file.name.replace('.mp3', '').replace(/_/g, ' '), artist: "MSM-Music", album: "Stream", blob: null, added: Date.now(), liked: false, plays: 0, base64Art: null, url: file.download_url, isRemote: true };
+                            if (state.user && db) {
+                                uploadSongToCloud(newSong); 
+                            } else {
+                                state.songs.push(newSong);
+                                addedCount++;
+                            }
                         }
                         if (!msmPlaylist.songs.includes(songId)) msmPlaylist.songs.push(songId);
                     }
                 });
-                if(addedCount > 0) { showToast(`Synced ${addedCount} songs`); savePlaylists(); renderPlaylists(); }
-            } catch (e) { console.warn("GitHub Sync failed"); }
+                
+                if (state.user && db) {
+                     db.collection('artifacts').doc(appId).collection('users').doc(state.user.uid).collection('playlists').doc(msmPlaylist.id.toString()).set(msmPlaylist);
+                } else if(addedCount > 0) { 
+                    showToast(`Synced ${addedCount} songs`); 
+                    savePlaylists(); 
+                    renderPlaylists(); 
+                }
+            } catch (e) { console.warn("GitHub Sync failed", e); }
         }
 
         // --- UI UPDATES ---
         function updateUI(song) {
             document.getElementById('player-title').textContent = song.title;
             document.getElementById('player-artist').textContent = song.artist;
-            
-            // Footer Art
             const art = song.base64Art ? `url('${song.base64Art}')` : 'linear-gradient(135deg, #4c1d95, #1e40af)';
             document.getElementById('player-art').style.backgroundImage = art;
             document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-pause text-base"></i>';
-            
-            // Visualizer Art Logic: HIDE if no art
             const visArt = document.getElementById('vis-art-corner');
             if (song.base64Art) {
                 visArt.style.display = 'block';
@@ -843,10 +1113,7 @@
             } else {
                 visArt.style.display = 'none';
             }
-
-            // Visualizer Text Animation
             updateVisualizerText(song.title, song.artist);
-
             document.querySelectorAll('.active-track').forEach(el => el.classList.remove('active-track'));
             const row = document.getElementById(`row-${song.id}`);
             if(row) row.classList.add('active-track');
@@ -953,32 +1220,18 @@
         }
         function nextSong() { 
             if(engine.isCrossfading) return; 
-            
-            // AUTO REFILL if queue is empty
-            if(state.queue.length === 0 && state.songs.length > 0) {
-                 state.queue = [...state.songs];
-            }
+            if(state.queue.length === 0 && state.songs.length > 0) state.queue = [...state.songs];
             if(state.queue.length === 0) return;
-
             let nextIdx = state.currentIndex + 1; 
-            // INFINITE LOOP: If we reach end, go back to 0
             if(nextIdx >= state.queue.length) nextIdx = 0;
-            
             playSong(state.queue[nextIdx].id); 
         }
         function prevSong() { 
             const active = getActiveAudio(); if(active.currentTime > 3) { active.currentTime = 0; return; } 
-            
-             // AUTO REFILL if queue is empty
-            if(state.queue.length === 0 && state.songs.length > 0) {
-                 state.queue = [...state.songs];
-            }
+            if(state.queue.length === 0 && state.songs.length > 0) state.queue = [...state.songs];
             if(state.queue.length === 0) return;
-
             let prevIdx = state.currentIndex - 1; 
-            // INFINITE LOOP REVERSE
             if(prevIdx < 0) prevIdx = state.queue.length - 1; 
-            
             playSong(state.queue[prevIdx].id); 
         }
         function toggleShuffle() { 
@@ -998,29 +1251,29 @@
             while (currentIndex != 0) {
                 randomIndex = Math.floor(Math.random() * currentIndex);
                 currentIndex--;
-                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+                [array[currentIndex], array[randomIndex]] = [array[currentIndex], array[currentIndex]];
             }
             return array;
         }
         function toggleRepeat() { state.repeat = !state.repeat; updateControlStates(); showToast(state.repeat ? "Loop On" : "Loop Off"); }
         
-        // --- SMART LIKES PLAYLIST ---
         function toggleLike() {
              if (state.currentIndex === -1) return;
              const currentSong = state.queue[state.currentIndex]; 
              currentSong.liked = !currentSong.liked;
              
-             // Update DB
-             const tx = db.transaction('songs', 'readwrite'); 
-             const store = tx.objectStore('songs');
-             store.put(currentSong);
+             if(state.user && db) {
+                 db.collection('artifacts').doc(appId).collection('users').doc(state.user.uid).collection('songs').doc(currentSong.id.toString()).update({ liked: currentSong.liked }).catch(()=>{});
+             } else {
+                 const tx = state.localDB.transaction('songs', 'readwrite'); 
+                 tx.objectStore('songs').put(currentSong);
+             }
              
-             // Manage "Liked Songs" Playlist
              const likedName = "Liked Songs";
              let likedPl = state.playlists.find(p => p.name === likedName);
              if(!likedPl) {
                  likedPl = { id: Date.now(), name: likedName, songs: [] };
-                 state.playlists.unshift(likedPl); // Add to top
+                 state.playlists.unshift(likedPl); 
              }
 
              if (currentSong.liked) {
@@ -1028,7 +1281,7 @@
              } else {
                  likedPl.songs = likedPl.songs.filter(id => id !== currentSong.id);
              }
-             savePlaylists();
+             if(state.user && db) syncPlaylistsToCloud(); else savePlaylists();
              renderPlaylists();
 
              document.getElementById('like-btn').innerHTML = currentSong.liked ? '<i class="fa-solid fa-heart text-neon"></i>' : '<i class="fa-regular fa-heart"></i>';
@@ -1050,13 +1303,26 @@
                 el.className = "draggable-source flex items-center p-2 rounded-lg hover:bg-white/5 group cursor-pointer transition border-l-4 border-transparent";
                 if(state.currentIndex > -1 && state.queue[state.currentIndex]?.id === song.id) el.classList.add('active-track');
                 
-                // UPDATED: Now calls playAndGoToVisualizer
                 el.onclick = () => playAndGoToVisualizer(song.id); 
-                
                 el.oncontextmenu = (e) => showContextMenu(e, song.id); el.draggable = true;
                 el.ondragstart = (e) => { e.dataTransfer.setData('text/songid', song.id); };
-                const iconHtml = song.base64Art ? '' : (song.isRemote ? '<i class="fa-solid fa-cloud text-neon flex justify-center items-center h-full"></i>' : '<i class="fa-solid fa-music text-slate-500 flex justify-center items-center h-full"></i>');
-                el.innerHTML = `<div class="w-10 h-10 rounded bg-slate-800 bg-cover bg-center mr-4 shrink-0" style="background-image: ${song.base64Art ? `url('${song.base64Art}')` : 'none'}">${iconHtml}</div><div class="flex-1 min-w-0"><div class="text-sm font-medium text-white truncate group-hover:text-neon transition">${song.title}${song.isRemote?'<span class="ml-2 text-[10px] bg-slate-700 px-1 rounded">STREAM</span>':''}</div><div class="text-xs text-slate-400 truncate">${song.artist} • ${song.album}</div></div>`;
+                
+                let iconHtml;
+                if(song.base64Art) {
+                    iconHtml = '';
+                } else if (!song.url && !song.blob) {
+                    iconHtml = '<i class="fa-solid fa-ban text-red-500 flex justify-center items-center h-full"></i>';
+                } else if (song.isRemote) {
+                    iconHtml = '<i class="fa-solid fa-cloud text-neon flex justify-center items-center h-full"></i>';
+                } else {
+                    iconHtml = '<i class="fa-solid fa-music text-slate-500 flex justify-center items-center h-full"></i>';
+                }
+                
+                let metaBadge = '';
+                if(song.isRemote) metaBadge = '<span class="ml-2 text-[10px] bg-slate-700 px-1 rounded text-neon">STREAM</span>';
+                else if(!song.url && !song.blob) metaBadge = '<span class="ml-2 text-[10px] bg-red-900 text-red-300 px-1 rounded">MISSING FILE</span>';
+
+                el.innerHTML = `<div class="w-10 h-10 rounded bg-slate-800 bg-cover bg-center mr-4 shrink-0" style="background-image: ${song.base64Art ? `url('${song.base64Art}')` : 'none'}">${iconHtml}</div><div class="flex-1 min-w-0"><div class="text-sm font-medium text-white truncate group-hover:text-neon transition">${song.title}${metaBadge}</div><div class="text-xs text-slate-400 truncate">${song.artist} • ${song.album}</div></div>`;
                 container.appendChild(el);
             });
         }
@@ -1075,13 +1341,18 @@
         function handleDragLeave(e) { e.target.classList.remove('drop-target-active'); }
         function handleDrop(e, playlistId) {
             e.preventDefault(); e.target.classList.remove('drop-target-active');
-            const songId = parseInt(e.dataTransfer.getData('text/songid'));
+            const songId = parseFloat(e.dataTransfer.getData('text/songid'));
             const pl = state.playlists.find(p => p.id === playlistId);
-            if (pl && !pl.songs.includes(songId)) { pl.songs.push(songId); savePlaylists(); showToast(`Added to ${pl.name}`); setTimeout(renderPlaylists, 1000); }
+            if (pl && !pl.songs.includes(songId)) { 
+                pl.songs.push(songId); 
+                if(state.user && db) syncPlaylistsToCloud(); else savePlaylists();
+                showToast(`Added to ${pl.name}`); 
+                setTimeout(renderPlaylists, 1000); 
+            }
         }
         function renderAlbumGrid() {
             const grid = document.getElementById('album-grid'); grid.innerHTML = ''; const albums = {}; 
-            state.songs.filter(s => !s.isRemote).forEach(s => { const name = s.album || 'Unknown'; if(!albums[name]) albums[name] = { art: s.base64Art, artist: s.artist, songs: [] }; albums[name].songs.push(s); });
+            state.songs.forEach(s => { const name = s.album || 'Unknown'; if(!albums[name]) albums[name] = { art: s.base64Art, artist: s.artist, songs: [] }; albums[name].songs.push(s); });
             Object.keys(albums).forEach(albumName => {
                 const alb = albums[albumName]; const card = document.createElement('div'); card.className = "bg-white/5 p-4 rounded-xl hover:bg-white/10 transition cursor-pointer group"; card.onclick = () => openAlbum(albumName, alb);
                 card.innerHTML = `<div class="aspect-square rounded-lg bg-slate-800 mb-3 bg-cover bg-center shadow-lg relative" style="background-image: ${alb.art ? `url('${alb.art}')` : 'none'}">${!alb.art ? '<i class="fa-solid fa-compact-disc text-4xl text-slate-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>' : ''}</div><h3 class="font-bold text-sm truncate">${albumName}</h3>`;
@@ -1090,8 +1361,23 @@
         }
         function openAlbum(name, data) { document.getElementById('detail-title').textContent = name; document.getElementById('detail-artist').textContent = data.artist; document.getElementById('detail-art').style.backgroundImage = data.art ? `url('${data.art}')` : 'none'; setQueueContext(data.songs); renderSongList('album-song-list', data.songs); switchView('album-detail'); }
         function openPlaylist(id) { state.activePlaylistId = id; const pl = state.playlists.find(p => p.id === id); document.getElementById('playlist-title').textContent = pl.name; const plSongs = pl.songs.map(sid => state.songs.find(s => s.id === sid)).filter(s => s); setQueueContext(plSongs); renderSongList('playlist-song-list', plSongs); switchView('playlist'); }
-        function deleteCurrentPlaylist() { if(!confirm("Delete this playlist?")) return; state.playlists = state.playlists.filter(p => p.id !== state.activePlaylistId); savePlaylists(); renderPlaylists(); switchView('home'); }
-        function deleteSongFromContext() { if(!confirm("Delete song from library?")) return; const tx = db.transaction('songs', 'readwrite'); tx.objectStore('songs').delete(state.contextTargetId); tx.oncomplete = () => { loadSongs(); hideContextMenu(); }; }
+        function deleteCurrentPlaylist() { 
+            if(!confirm("Delete this playlist?")) return; 
+            state.playlists = state.playlists.filter(p => p.id !== state.activePlaylistId); 
+            if(state.user && db) syncPlaylistsToCloud(); else savePlaylists();
+            renderPlaylists(); switchView('home'); 
+        }
+        function deleteSongFromContext() { 
+            if(!confirm("Delete song from library?")) return; 
+            if (state.user && db) {
+                 db.collection('artifacts').doc(appId).collection('users').doc(state.user.uid).collection('songs').doc(state.contextTargetId.toString()).delete();
+            } else {
+                const tx = state.localDB.transaction('songs', 'readwrite'); 
+                tx.objectStore('songs').delete(state.contextTargetId); 
+                tx.oncomplete = () => loadLocalSongs();
+            }
+            hideContextMenu(); 
+        }
         function showContextMenu(e, id) { 
             e.preventDefault(); state.contextTargetId = id; const m = document.getElementById('context-menu'); 
             m.style.display = 'block'; let x = e.pageX; let y = e.pageY; if(window.innerWidth - x < 200) x -= 200; m.style.left = x + 'px'; m.style.top = y + 'px'; 
@@ -1106,7 +1392,14 @@
             if(origIndex > -1) state.originalQueue.splice(origIndex + 1, 0, song); else state.originalQueue.push(song);
             hideContextMenu(); showToast("Playing next: " + song.title); if(state.isQueueOpen) renderQueueList();
         }
-        function addSongToPlaylist(playlistId) { const pl = state.playlists.find(p => p.id === playlistId); if(pl && !pl.songs.includes(state.contextTargetId)) { pl.songs.push(state.contextTargetId); savePlaylists(); hideContextMenu(); showToast(`Added to ${pl.name}`); } else { hideContextMenu(); } }
+        function addSongToPlaylist(playlistId) { 
+            const pl = state.playlists.find(p => p.id === playlistId); 
+            if(pl && !pl.songs.includes(state.contextTargetId)) { 
+                pl.songs.push(state.contextTargetId); 
+                if(state.user && db) syncPlaylistsToCloud(); else savePlaylists();
+                hideContextMenu(); showToast(`Added to ${pl.name}`); 
+            } else { hideContextMenu(); } 
+        }
         function hideContextMenu() { document.getElementById('context-menu').style.display = 'none'; }
         function showToast(message) {
             const toast = document.getElementById('toast');
@@ -1124,18 +1417,21 @@
         }
         function switchView(view) { 
             document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); document.getElementById('view-' + view).classList.remove('hidden'); 
-            if(view === 'home') { const localSongs = state.songs.filter(s => !s.isRemote); setQueueContext(localSongs); renderSongList('song-list', localSongs); }
+            if(view === 'home') { 
+                // Don't filter remote/local here if we want to show everything
+                setQueueContext(state.songs); renderSongList('song-list', state.songs); 
+            }
             if(view === 'dashboard') renderDashboard();
             if(view === 'albums') renderAlbumGrid(); 
             if(view === 'visualizer') resizeCanvas(); 
         }
         function toggleNewPlaylistInput() { const c = document.getElementById('new-playlist-container'); const i = document.getElementById('new-playlist-input'); c.classList.toggle('visible'); if(c.classList.contains('visible')) i.focus(); }
-        function handlePlaylistInput(e) { if(e.key === 'Enter') { const name = e.target.value.trim(); if(name) { state.playlists.push({ id: Date.now(), name, songs: [] }); savePlaylists(); renderPlaylists(); showToast(`Created playlist: ${name}`); e.target.value = ''; cancelPlaylistInput(); } } else if(e.key === 'Escape') cancelPlaylistInput(); }
+        function handlePlaylistInput(e) { if(e.key === 'Enter') { const name = e.target.value.trim(); if(name) { state.playlists.push({ id: Date.now(), name, songs: [] }); if(state.user && db) syncPlaylistsToCloud(); else savePlaylists(); renderPlaylists(); showToast(`Created playlist: ${name}`); e.target.value = ''; cancelPlaylistInput(); } } else if(e.key === 'Escape') cancelPlaylistInput(); }
         function cancelPlaylistInput() { const c = document.getElementById('new-playlist-container'); const i = document.getElementById('new-playlist-input'); c.classList.remove('visible'); i.value = ''; }
-        function filterSongs(val) { const localOnly = state.songs.filter(s => !s.isRemote); const filtered = localOnly.filter(s => s.title.toLowerCase().includes(val.toLowerCase()) || s.artist.toLowerCase().includes(val.toLowerCase())); renderSongList('song-list', filtered); }
+        function filterSongs(val) { const filtered = state.songs.filter(s => s.title.toLowerCase().includes(val.toLowerCase()) || s.artist.toLowerCase().includes(val.toLowerCase())); renderSongList('song-list', filtered); }
         function sortLibrary(type) { 
             if(type === 'title') state.songs.sort((a,b) => a.title.localeCompare(b.title)); if(type === 'artist') state.songs.sort((a,b) => a.artist.localeCompare(b.artist)); if(type === 'added') state.songs.sort((a,b) => b.added - a.added); 
-            const localQueue = state.songs.filter(s => !s.isRemote); setQueueContext(localQueue); renderSongList('song-list', localQueue); 
+            setQueueContext(state.songs); renderSongList('song-list', state.songs); 
         }
         function setQueueContext(newSongList) { state.originalQueue = [...newSongList]; if (state.shuffle) { state.queue = shuffleArray([...state.originalQueue]); } else { state.queue = [...newSongList]; } if(state.isQueueOpen) renderQueueList(); }
         function formatTime(s) { if(isNaN(s)) return "0:00"; const m = Math.floor(s/60); const sec = Math.floor(s%60); return `${m}:${sec<10?'0'+sec:sec}`; }
