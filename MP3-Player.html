@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gaboom's Ultimate Player v6</title>
+    <title>Gaboom's Ultimate Player v6.1</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -190,7 +190,7 @@
                         <i class="fa-solid fa-bolt"></i>
                     </div>
                 </div>
-                <h1 class="text-xl font-bold tracking-tight">GaboomsPlayer <span class="text-xs align-top text-neon">v6</span></h1>
+                <h1 class="text-xl font-bold tracking-tight">GaboomsPlayer <span class="text-xs align-top text-neon">v6.1</span></h1>
             </div>
 
             <nav class="flex-1 overflow-y-auto px-4 space-y-4">
@@ -355,15 +355,12 @@
                     </div>
                 </div>
 
-                <!-- UPDATED VISUALIZER LAYOUT -->
                 <div id="view-visualizer" class="hidden h-full flex flex-col items-center justify-center relative view-section overflow-hidden">
                     <canvas id="visualizer-canvas" class="absolute inset-0 w-full h-full z-0 opacity-60"></canvas>
                     
                     <div id="vis-art-corner" class="absolute top-8 right-8 w-48 h-48 rounded-xl bg-slate-800 bg-cover bg-center shadow-2xl border border-white/10 z-20"></div>
 
-                    <!-- Absolute positioning wrapper for bottom placement -->
                     <div id="vis-text-wrapper" class="px-10">
-                        <!-- Reduced text size per request -->
                         <h2 id="vis-title-container" class="text-3xl md:text-4xl font-bold text-white mb-1 tracking-tight drop-shadow-xl inline-block normal-text"></h2>
                         <p id="vis-artist" class="text-base text-slate-300 font-light drop-shadow-md">Unknown</p>
                     </div>
@@ -466,7 +463,8 @@
             songs: [], playlists: JSON.parse(localStorage.getItem('pro_playlists') || '[]'),
             settings: JSON.parse(localStorage.getItem('pro_settings') || '{"crossfade": 4, "theme": "midnight", "visStyle": "mirror"}'),
             queue: [], originalQueue: [], currentIndex: -1, isPlaying: false, shuffle: false, repeat: false,
-            contextTargetId: null, activePlaylistId: null, isQueueOpen: false
+            contextTargetId: null, activePlaylistId: null, isQueueOpen: false,
+            skipCount: 0 // New Error Counter
         };
 
         const jsmediatags = window.jsmediatags;
@@ -496,10 +494,21 @@
                 if(e.code === 'ArrowLeft') prevSong();
             });
 
+            // Standard Event Listeners
             engine.audioA.addEventListener('timeupdate', () => handleTimeUpdate(engine.audioA));
             engine.audioB.addEventListener('timeupdate', () => handleTimeUpdate(engine.audioB));
             engine.audioA.addEventListener('ended', handleTrackEnd);
             engine.audioB.addEventListener('ended', handleTrackEnd);
+
+            // ERROR HANDLING LISTENERS (NEW)
+            engine.audioA.addEventListener('error', (e) => {
+                console.warn("Audio Deck A Error:", e);
+                if(engine.activeDeck === 'A' && state.isPlaying) handlePlaybackError(state.queue[state.currentIndex]);
+            });
+            engine.audioB.addEventListener('error', (e) => {
+                console.warn("Audio Deck B Error:", e);
+                if(engine.activeDeck === 'B' && state.isPlaying) handlePlaybackError(state.queue[state.currentIndex]);
+            });
 
             requestAnimationFrame(drawVisualizerLoop);
             resizeCanvas();
@@ -510,6 +519,28 @@
         function handleTrackEnd() {
             // Updated to allow infinite play logic inside nextSong to take over
             nextSong();
+        }
+
+        // --- ERROR HANDLING SYSTEM (NEW) ---
+        function handlePlaybackError(song) {
+            if(!song) return;
+            state.skipCount++;
+            
+            // Safety Valve: Stop if we error out 5 times in a row
+            if(state.skipCount > 5) {
+                state.isPlaying = false;
+                state.skipCount = 0;
+                showToast("Too many errors. Playback stopped.");
+                return;
+            }
+
+            showToast(`Error: "${song.title}", skipping...`);
+            console.warn(`Skipping corrupt/missing song: ${song.title}`);
+            
+            // Slight delay to prevent CPU thrashing
+            setTimeout(() => {
+                nextSong(); 
+            }, 500);
         }
 
         // --- DASHBOARD LOGIC ---
@@ -530,7 +561,6 @@
             if(topSongs[0]) {
                 const s = topSongs[0];
                 const art = s.base64Art ? `url('${s.base64Art}')` : 'linear-gradient(135deg, #4c1d95, #1e40af)';
-                // UPDATED: Now calls playLibrarySong instead of just playSong
                 html += `
                 <div onclick="playLibrarySong(${s.id});" class="md:col-span-2 dash-card rounded-2xl bg-slate-800 bg-cover bg-center p-6 flex flex-col justify-end" style="background-image: ${art}">
                     <div class="relative z-10">
@@ -703,9 +733,28 @@
                 engine.isCrossfading = false;
                 const other = engine.activeDeck === 'A' ? engine.audioB : engine.audioA;
                 other.pause();
+
+                // URL REGENERATION SAFETY CHECK (Fixed for v6.1)
+                // If url is missing but blob exists, regenerate it.
+                if (!song.url && song.blob) {
+                    song.url = URL.createObjectURL(song.blob);
+                } else if (!song.url && !song.isRemote) {
+                    // Cannot play this file.
+                    handlePlaybackError(song);
+                    return;
+                }
+
                 targetAudio.src = song.url;
                 targetAudio.currentTime = 0;
-                targetAudio.play().then(() => { state.isPlaying = true; updateUI(song); }).catch(e => console.error(e));
+                
+                targetAudio.play().then(() => { 
+                    state.isPlaying = true; 
+                    state.skipCount = 0; // Reset error counter on success
+                    updateUI(song); 
+                }).catch(e => {
+                    console.error("Play failed:", e);
+                    handlePlaybackError(song);
+                });
             }
         }
 
@@ -718,6 +767,9 @@
             const nextSong = state.queue[nextIdx];
             incrementPlayCount(nextSong);
 
+            // URL SAFETY CHECK
+            if (!nextSong.url && nextSong.blob) nextSong.url = URL.createObjectURL(nextSong.blob);
+
             const outgoingDeck = engine.activeDeck;
             const incomingDeck = engine.activeDeck === 'A' ? 'B' : 'A';
             const outgoingGain = outgoingDeck === 'A' ? engine.gainA : engine.gainB;
@@ -729,6 +781,7 @@
             incomingGain.gain.setValueAtTime(0, engine.audioCtx.currentTime);
             
             incomingAudio.play().then(() => {
+                state.skipCount = 0; // Reset error counter on success
                 const fadeDuration = parseFloat(state.settings.crossfade);
                 const now = engine.audioCtx.currentTime;
                 incomingGain.gain.linearRampToValueAtTime(1, now + fadeDuration);
@@ -741,7 +794,12 @@
                 if(state.isQueueOpen) renderQueueList();
 
                 setTimeout(() => { outgoingAudio.pause(); outgoingGain.gain.value = 1; engine.isCrossfading = false; }, fadeDuration * 1000);
-            }).catch(e => console.error(e));
+            }).catch(e => {
+                console.error("Crossfade failed:", e);
+                // If crossfade fails, likely the file is bad, just skip hard.
+                engine.isCrossfading = false;
+                handlePlaybackError(nextSong);
+            });
         }
 
         function seekAudio(e) {
@@ -762,7 +820,16 @@
                 const tx = db.transaction('songs', 'readonly');
                 tx.objectStore('songs').getAll().onsuccess = e => {
                     const rawSongs = e.target.result || [];
-                    state.songs = rawSongs.map(s => { if(s.blob && !s.url) s.url = URL.createObjectURL(s.blob); return s; });
+                    
+                    // IMPROVED LOADING LOGIC: Regenerate URLs for blobs if needed
+                    state.songs = rawSongs.map(s => { 
+                        if(s.blob && (!s.url || s.url.startsWith('blob:'))) {
+                            // Always regenerate blob URLs on load as old ones expire on refresh
+                            s.url = URL.createObjectURL(s.blob);
+                        }
+                        return s; 
+                    });
+                    
                     const local = state.songs.filter(s => !s.isRemote);
                     
                     // Initial Queue Setup: Only do this if queue is empty
